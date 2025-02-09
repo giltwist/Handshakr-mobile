@@ -2,12 +2,20 @@ package com.sxa1508.handshakr;
 
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.Manifest;
+import android.view.View;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.ListPopupWindow;
+import android.widget.PopupWindow;
+import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
@@ -19,83 +27,194 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+
 public class MainActivity extends AppCompatActivity {
 
-    private static Context context;
+    ListPopupWindow BTnearlist;
+    public Map<BluetoothDevice, String> btList;
+    BTNearbyReceiver btr;
+    ArrayAdapter<String> BTnearadapter;
+    BluetoothManager bluetoothManager;
+    BluetoothAdapter bluetoothAdapter;
 
-    private ActivityResultLauncher<String> requestPermissionLauncher =
-            registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
-                if (isGranted) {
-                    // Permission is granted. Continue the action or workflow in your
-                    // app.
+    //BEGIN ACTIVITY LAUNCHERS
+    private ActivityResultLauncher<String[]> requestPermissionLauncher =
+            registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), isGranted -> {
+                if (isGranted.containsValue(false)) {
+                    Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "At least one permission was denied", Toast.LENGTH_SHORT);
+                    hasntBTtoast.show();
                 } else {
-                    // Explain to the user that the feature is unavailable because the
-                    // feature requires a permission that the user has denied. At the
-                    // same time, respect the user's decision. Don't link to system
-                    // settings in an effort to convince the user to change their
-                    // decision.
+                    Toast hasBTtoast = Toast.makeText(getApplicationContext(), "All perms granted", Toast.LENGTH_SHORT);
+                    hasBTtoast.show();
                 }
             });
+
+    private ActivityResultLauncher<Intent> requestBTenable = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                }
+            });
+
+    private ActivityResultLauncher<Intent> startDiscoverable = registerForActivityResult(
+            new ActivityResultContracts.StartActivityForResult(),
+            result -> {
+                if (result.getResultCode() == Activity.RESULT_OK) {
+                    Intent data = result.getData();
+                }
+            });
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom);
             return insets;
         });
 
+        //BEGIN INIT
 
-        if (ContextCompat.checkSelfPermission(
-                this
+        btList = new HashMap<>();
+        btr = new BTNearbyReceiver(this);
+        BTnearadapter = new ArrayAdapter<String>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
+        BTnearlist = new ListPopupWindow(this);
+        BTnearlist.setAdapter(BTnearadapter);
+        BTnearlist.setModal(true);
+        BTnearlist.setOnItemClickListener((parent, view, position, id) -> {
 
-                , Manifest.permission.BLUETOOTH_CONNECT
+            //Toast choseToast = Toast.makeText(getApplicationContext(), "You chose " + ((BluetoothDevice) btList.keySet().toArray()[position]).getName(), Toast.LENGTH_SHORT);
+            //choseToast.show();
 
-        ) ==
-                PackageManager.PERMISSION_GRANTED) {
-            // You can use the API that requires the permission.
-            // performAction(...);
-        } else if (ActivityCompat.shouldShowRequestPermissionRationale(
-                this, Manifest.permission.BLUETOOTH_CONNECT
+            doPair(this,((BluetoothDevice) btList.keySet().toArray()[position]));
 
-        )) {
-            // In an educational UI, explain to the user why your app requires this
-            // permission for a specific feature to behave as expected, and what
-            // features are disabled if it's declined. In this UI, include a
-            // "cancel" or "no thanks" button that lets the user continue
-            // using your app without granting the permission.
-            //showInContextUI(...);
+            BTnearlist.dismiss();
+        });
+
+        registerReceiver(btr, new IntentFilter(BluetoothDevice.ACTION_FOUND));
+
+
+    }
+
+    public void getBTperms(View view) {
+
+        if (hasBTPerms()) {
+
+            Toast hasBTtoast = Toast.makeText(getApplicationContext(), "Already have BT perms", Toast.LENGTH_SHORT);
+            hasBTtoast.show();
+
         } else {
             // You can directly ask for the permission.
             // The registered ActivityResultCallback gets the result of this request.
-            requestPermissionLauncher.launch(
-                    Manifest.permission.BLUETOOTH_CONNECT
-
-            );
+            requestPermissionLauncher.launch(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN});
         }
+    }
 
-        BluetoothManager bluetoothManager = getSystemService(BluetoothManager.class);
-        BluetoothAdapter bluetoothAdapter = bluetoothManager.getAdapter();
+    private boolean hasBTPerms() {
+        result = ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
+        if (result){
+            bluetoothManager = getSystemService(BluetoothManager.class);
+            bluetoothAdapter = bluetoothManager.getAdapter();
+        }
+         return (result);
+    }
 
-        ActivityResultLauncher<Intent> requestBTenable = registerForActivityResult(
-                new ActivityResultContracts.StartActivityForResult(),
-                result -> {
-                    if (result.getResultCode() == Activity.RESULT_OK) {
-                        Intent data = result.getData();
-                    }
-                });
+    public void enableBT(View view) {
+        if (hasBTPerms()) {
 
-        if (bluetoothAdapter == null) {
-            // Device doesn't support Bluetooth
-        } else {
-            if (!bluetoothAdapter.isEnabled()) {
-                Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
-                requestBTenable.launch(enableBtIntent);
-
+            if (bluetoothAdapter == null) {
+                Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "No BT functionality detected", Toast.LENGTH_SHORT);
+                hasntBTtoast.show();
+            } else {
+                if (!bluetoothAdapter.isEnabled()) {
+                    Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                    requestBTenable.launch(enableBtIntent);
+                } else {
+                    Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already enabled", Toast.LENGTH_SHORT);
+                    hasBTtoast.show();
+                }
             }
+        } else {
+            Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need BT perms", Toast.LENGTH_SHORT);
+            hasntBTtoast.show();
         }
+    }
+
+    public void beDiscoverable(View view) {
+        if (hasBTPerms()) {
+
+            if (bluetoothAdapter == null) {
+                Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "No BT functionality detected", Toast.LENGTH_SHORT);
+                hasntBTtoast.show();
+            } else {
+                if (bluetoothAdapter.isEnabled()) {
+                    if (bluetoothAdapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
+                        Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already discoverable", Toast.LENGTH_SHORT);
+                        hasBTtoast.show();
+                    } else {
+                        Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+                        requestBTenable.launch(enableDiscoverable);
+                    }
+                } else {
+                    Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT);
+                    hasntBTtoast.show();
+                }
+            }
+
+        }
+
+    }
+
+    public void doDiscover(View view) {
+
+        if (hasBTPerms()) {
+
+
+            if (bluetoothAdapter == null) {
+                Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "No BT functionality detected", Toast.LENGTH_SHORT);
+                hasntBTtoast.show();
+            } else {
+                if (bluetoothAdapter.isEnabled()) {
+                    bluetoothAdapter.startDiscovery();
+
+                    BTnearlist.setAnchorView(view);
+                    BTnearlist.show();
+
+                } else {
+                    Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT);
+                    hasntBTtoast.show();
+                }
+            }
+
+        }
+
+    }
+
+    public boolean isPaired(MainActivity main, BluetoothDevice b) {
+        return main.bluetoothAdapter.getBondedDevices().contains(b);
+    }
+
+    public void doPair(MainActivity main, BluetoothDevice b) {
+
+        if (isPaired(main, b)) {
+            Toast pairedToast = Toast.makeText(getApplicationContext(), "Already paired with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+            pairedToast.show();
+        } else{
+            Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+            pairedToast.show();
+            main.bluetoothAdapter.cancelDiscovery();
+            main.bluetoothAdapter.listenUsingRfcommWithServiceRecord("handshakr", UUID.fromString("40bbb78d-4257-4aff-9607-70ba22b747d2"));
+
+        }
+
     }
 }
