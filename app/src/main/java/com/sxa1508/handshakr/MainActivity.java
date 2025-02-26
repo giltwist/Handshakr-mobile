@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
+import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -34,12 +35,17 @@ import java.util.UUID;
 
 public class MainActivity extends AppCompatActivity {
 
+    public final UUID MY_UUID = UUID.fromString("40bbb78d-4257-4aff-9607-70ba22b747d2");
+
     ListPopupWindow BTnearlist;
     public Map<BluetoothDevice, String> btList;
     BTNearbyReceiver btr;
     ArrayAdapter<String> BTnearadapter;
     BluetoothManager bluetoothManager;
     BluetoothAdapter bluetoothAdapter;
+
+    AcceptThread acceptThread;
+    ConnectThread connectThread;
 
     //BEGIN ACTIVITY LAUNCHERS
     private ActivityResultLauncher<String[]> requestPermissionLauncher =
@@ -86,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
 
         btList = new HashMap<>();
         btr = new BTNearbyReceiver(this);
-        BTnearadapter = new ArrayAdapter<String>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
+        BTnearadapter = new ArrayAdapter<>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
         BTnearlist = new ListPopupWindow(this);
         BTnearlist.setAdapter(BTnearadapter);
         BTnearlist.setModal(true);
@@ -95,12 +101,13 @@ public class MainActivity extends AppCompatActivity {
             //Toast choseToast = Toast.makeText(getApplicationContext(), "You chose " + ((BluetoothDevice) btList.keySet().toArray()[position]).getName(), Toast.LENGTH_SHORT);
             //choseToast.show();
 
-            doPair(this,((BluetoothDevice) btList.keySet().toArray()[position]));
+            doPair(this, ((BluetoothDevice) btList.keySet().toArray()[position]));
 
             BTnearlist.dismiss();
         });
 
         registerReceiver(btr, new IntentFilter(BluetoothDevice.ACTION_FOUND));
+
 
 
     }
@@ -120,12 +127,14 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private boolean hasBTPerms() {
-        result = ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED) && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED
-        if (result){
+        boolean result;
+        result = (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)
+                && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED);
+        if (result) {
             bluetoothManager = getSystemService(BluetoothManager.class);
             bluetoothAdapter = bluetoothManager.getAdapter();
         }
-         return (result);
+        return (result);
     }
 
     public void enableBT(View view) {
@@ -159,10 +168,12 @@ public class MainActivity extends AppCompatActivity {
                 if (bluetoothAdapter.isEnabled()) {
                     if (bluetoothAdapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
                         Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already discoverable", Toast.LENGTH_SHORT);
+
                         hasBTtoast.show();
                     } else {
                         Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
                         requestBTenable.launch(enableDiscoverable);
+                        acceptThread = new AcceptThread(this);
                     }
                 } else {
                     Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT);
@@ -200,21 +211,30 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public boolean isPaired(MainActivity main, BluetoothDevice b) {
-        return main.bluetoothAdapter.getBondedDevices().contains(b);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+
+            return main.bluetoothAdapter.getBondedDevices().contains(b);
+        }
+        else{
+            return false;
+        }
+
     }
 
     public void doPair(MainActivity main, BluetoothDevice b) {
+        Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+        pairedToast.show();
+        connectThread = new ConnectThread(main,b);
+        connectThread.run();
 
-        if (isPaired(main, b)) {
-            Toast pairedToast = Toast.makeText(getApplicationContext(), "Already paired with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
-            pairedToast.show();
-        } else{
-            Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
-            pairedToast.show();
-            main.bluetoothAdapter.cancelDiscovery();
-            main.bluetoothAdapter.listenUsingRfcommWithServiceRecord("handshakr", UUID.fromString("40bbb78d-4257-4aff-9607-70ba22b747d2"));
+    }
 
-        }
+    public void testSendData(BluetoothSocket s) {
+        //TODO
+        BluetoothDevice b = s.getRemoteDevice();
+        Toast sendToast = Toast.makeText(getApplicationContext(), "Sending test data to " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+        sendToast.show();
 
+        //connectThread.cancel();
     }
 }

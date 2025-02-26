@@ -24,9 +24,10 @@ public class BTNearbyReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         BluetoothDevice fromIntent = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
+        assert fromIntent != null;
         String intentName=fromIntent.getName()==null?fromIntent.getAddress():fromIntent.getName();
         this.main.btList.putIfAbsent(fromIntent,intentName);
-        this.main.BTnearadapter = new ArrayAdapter<String>(this.main, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, this.main.btList.values().toArray(String[]::new));
+        this.main.BTnearadapter = new ArrayAdapter<>(this.main, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, this.main.btList.values().toArray(String[]::new));
         this.main.BTnearlist.setAdapter(this.main.BTnearadapter);
         this.main.BTnearlist.show();
 
