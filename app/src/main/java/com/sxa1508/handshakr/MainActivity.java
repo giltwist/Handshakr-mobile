@@ -1,21 +1,20 @@
 package com.sxa1508.handshakr;
 
+import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothSocket;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.Manifest;
+import android.os.Handler;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.ListPopupWindow;
-import android.widget.PopupWindow;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -28,7 +27,10 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import java.util.ArrayList;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -41,11 +43,16 @@ public class MainActivity extends AppCompatActivity {
     public Map<BluetoothDevice, String> btList;
     BTNearbyReceiver btr;
     ArrayAdapter<String> BTnearadapter;
+    ArrayAdapter<String> mConversationArrayAdapter;
     BluetoothManager bluetoothManager;
     BluetoothAdapter bluetoothAdapter;
 
     AcceptThread acceptThread;
     ConnectThread connectThread;
+    SendThread sendThread;
+    ReceiveThread receiveThread;
+
+    MsgHandler mHandler;
 
     //BEGIN ACTIVITY LAUNCHERS
     private ActivityResultLauncher<String[]> requestPermissionLauncher =
@@ -90,6 +97,7 @@ public class MainActivity extends AppCompatActivity {
 
         //BEGIN INIT
 
+        mHandler = new MsgHandler().setActivity(this);
         btList = new HashMap<>();
         btr = new BTNearbyReceiver(this);
         BTnearadapter = new ArrayAdapter<>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
@@ -158,6 +166,8 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    @SuppressLint("MissingPermission")
+    //Has a permission check but linter doesn't see it
     public void beDiscoverable(View view) {
         if (hasBTPerms()) {
 
@@ -167,14 +177,14 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 if (bluetoothAdapter.isEnabled()) {
                     if (bluetoothAdapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
-                        Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already discoverable", Toast.LENGTH_SHORT);
-
-                        hasBTtoast.show();
-                    } else {
+                        bluetoothAdapter.cancelDiscovery();
+                    }
                         Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
                         requestBTenable.launch(enableDiscoverable);
                         acceptThread = new AcceptThread(this);
-                    }
+                        acceptThread.run();
+
+
                 } else {
                     Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT);
                     hasntBTtoast.show();
@@ -185,6 +195,8 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    @SuppressLint("MissingPermission")
+    //Has a permission check but linter doesn't see it
     public void doDiscover(View view) {
 
         if (hasBTPerms()) {
@@ -220,7 +232,8 @@ public class MainActivity extends AppCompatActivity {
         }
 
     }
-
+    @SuppressLint("MissingPermission")
+    //Only call with permissions!
     public void doPair(MainActivity main, BluetoothDevice b) {
         Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
         pairedToast.show();
@@ -229,12 +242,49 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+
+
+
+
+    @SuppressLint("MissingPermission")
+    //Only call with permissions!
     public void testSendData(BluetoothSocket s) {
-        //TODO
+        //this = mainactivity
         BluetoothDevice b = s.getRemoteDevice();
         Toast sendToast = Toast.makeText(getApplicationContext(), "Sending test data to " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
         sendToast.show();
 
-        //connectThread.cancel();
+        JSONObject testData = new JSONObject();
+        try {
+            testData.put("user","docsock");
+            testData.put("title","lawnmowing");
+            testData.put("detail","If you mow my lawn on Saturday then I will pay you $50.");
+            testData.put("signature",UUID.randomUUID().toString());
+            byte[] testDataAsBytes = testData.toString().getBytes(StandardCharsets.UTF_8);
+            sendThread = new SendThread(s, this.mHandler);
+            sendThread.setMmBuffer(testDataAsBytes);
+            sendThread.run();
+
+        } catch (Exception e) {
+
+            Toast jsonToast = Toast.makeText(getApplicationContext(), "Error sending JSON payload " + e, Toast.LENGTH_SHORT);
+            jsonToast.show();
+            //throw new RuntimeException(e);
+        }
     }
+
+    @SuppressLint("MissingPermission")
+    //Only call with permissions!
+    public void testReceiveData(BluetoothSocket s) {
+        //this = mainactivity
+
+        BluetoothDevice b = s.getRemoteDevice();
+        Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+        receiveToast.show();
+
+        receiveThread = new ReceiveThread(s, this.mHandler);
+        receiveThread.run();
+    }
+
+
 }

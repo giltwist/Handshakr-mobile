@@ -3,6 +3,7 @@ package com.sxa1508.handshakr;
 // This class adapted from the official Android Developer tutorial:
 // https://developer.android.com/develop/connectivity/bluetooth/connect-bluetooth-devices
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
@@ -10,11 +11,14 @@ import android.widget.Toast;
 
 import java.io.IOException;
 
-private class ConnectThread extends Thread {
+@SuppressLint("MissingPermission")
+//Only call with permission!
+public class ConnectThread extends Thread {
     private final BluetoothSocket mmSocket;
     private final BluetoothDevice mmDevice;
     String TAG = "HandshakrConnect";
     MainActivity main;
+
 
     public ConnectThread(MainActivity mainActivity, BluetoothDevice device) {
         this.main=mainActivity;
@@ -27,7 +31,7 @@ private class ConnectThread extends Thread {
         try {
             // Get a BluetoothSocket to connect with the given BluetoothDevice.
             // MY_UUID is the app's UUID string, also used in the server code.
-            tmp = device.createRfcommSocketToServiceRecord(main.MY_UUID);
+            tmp = mmDevice.createRfcommSocketToServiceRecord(main.MY_UUID);
         } catch (IOException e) {
             Toast failToast = Toast.makeText(main, "Socket's create() method failed", Toast.LENGTH_SHORT);
             failToast.show();

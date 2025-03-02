@@ -3,6 +3,7 @@ package com.sxa1508.handshakr;
 // This class adapted from the official Android Developer tutorial:
 // https://developer.android.com/develop/connectivity/bluetooth/connect-bluetooth-devices
 
+import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
@@ -10,11 +11,13 @@ import android.widget.Toast;
 
 import java.io.IOException;
 
-private class AcceptThread extends Thread {
+public class AcceptThread extends Thread {
     MainActivity main;
     String TAG = "HandshakrAccept";
     private final BluetoothServerSocket mmServerSocket;
 
+    @SuppressLint("MissingPermission")
+    //Only call when you have the permission!
     public AcceptThread(MainActivity mainActivity) {
         this.main=mainActivity;
         // Use a temporary object that is later assigned to mmServerSocket
@@ -47,8 +50,12 @@ private class AcceptThread extends Thread {
             if (socket != null) {
                 // A connection was accepted. Perform work associated with
                 // the connection in a separate thread.
-                //manageMyConnectedSocket(socket);
-                mmServerSocket.close();
+                main.testReceiveData(socket);
+                try {
+                    mmServerSocket.close();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
                 break;
             }
         }
