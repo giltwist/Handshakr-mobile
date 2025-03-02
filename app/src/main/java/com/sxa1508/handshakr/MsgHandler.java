@@ -35,7 +35,7 @@ public class MsgHandler extends Handler implements MessageConstants {
                 // construct a string from the valid bytes in the buffer
                 String readMessage = new String(readBuf, 0, msg.arg1, StandardCharsets.UTF_8);
 
-                /*StringBuilder sb = new StringBuilder();
+                StringBuilder sb = new StringBuilder();
                 try {
                     JSONObject jsonObject = new JSONObject(readMessage);
                     jsonObject.keys().forEachRemaining(keyStr ->
@@ -48,9 +48,9 @@ public class MsgHandler extends Handler implements MessageConstants {
                     });
                 } catch (JSONException e){
                     sb.append("ERROR DECODING JSON");
-                }*/
+                }
 
-                Toast.makeText(activity, readMessage, Toast.LENGTH_LONG).show();
+                Toast.makeText(activity, sb.toString(), Toast.LENGTH_LONG).show();
                 //activity.mConversationArrayAdapter.add(readMessage);
                 break;
 
