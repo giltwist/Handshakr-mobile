@@ -10,10 +10,15 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.LinearLayout;
 import android.widget.ListPopupWindow;
+import android.widget.PopupWindow;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -25,6 +30,8 @@ import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
+
+import com.google.android.material.snackbar.Snackbar;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -289,8 +296,8 @@ public class MainActivity extends AppCompatActivity {
         //this = mainactivity
 
         BluetoothDevice b = s.getRemoteDevice();
-        Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
-        receiveToast.show();
+        //Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
+        //receiveToast.show();
 
         receiveRunner = new ReceiveRunner(s);
         Future<?> futureJSON = executor.submit(receiveRunner);
@@ -311,7 +318,9 @@ public class MainActivity extends AppCompatActivity {
             //throw new RuntimeException(e);
         }
 
-        Toast.makeText(this,sb.toString(),Toast.LENGTH_SHORT).show();
+        Snackbar snackbar = Snackbar.make(findViewById(R.id.main), sb.toString(), Snackbar.LENGTH_LONG);
+        snackbar.setTextMaxLines(10);
+        snackbar.show();
 
 
 

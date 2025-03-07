@@ -66,7 +66,7 @@ public class ReceiveRunner implements Callable<JSONObject>, MessageConstants {
             } catch (IOException e) {
                 done = true;
                 try {
-                    jsonObject.put("test","fail");
+                    jsonObject.put("Connection","Failed");
                 } catch (JSONException ex) {
                    // throw new RuntimeException(ex);
                 }
