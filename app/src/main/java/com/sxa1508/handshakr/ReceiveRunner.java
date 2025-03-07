@@ -4,28 +4,29 @@ package com.sxa1508.handshakr;
 // https://developer.android.com/develop/connectivity/bluetooth/transfer-data
 
 import android.bluetooth.BluetoothSocket;
-import android.os.Bundle;
-import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
+
+import org.json.JSONException;
+import org.json.JSONObject;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Callable;
 
 
-public class SendThread extends Thread implements MessageConstants {
+public class ReceiveRunner implements Callable<JSONObject>, MessageConstants {
     private final BluetoothSocket mmSocket;
     private final InputStream mmInStream;
     private final OutputStream mmOutStream;
     private byte[] mmBuffer; // mmBuffer store for the stream
     String TAG = "HandshakrTransfer";
 
-    private Handler handler; // handler that gets info from Bluetooth service
 
-    public SendThread(BluetoothSocket socket, Handler h) {
+    public ReceiveRunner(BluetoothSocket socket) {
         mmSocket = socket;
-        handler = h;
         InputStream tmpIn = null;
         OutputStream tmpOut = null;
 
@@ -46,33 +47,42 @@ public class SendThread extends Thread implements MessageConstants {
         mmOutStream = tmpOut;
     }
 
-    public void run() {
-        write(mmBuffer);
-        //this.cancel();
-    }
+    public JSONObject call() {
+        mmBuffer = new byte[1024];
+        int numBytes; // bytes returned from read()
+        boolean done = false;
+        JSONObject jsonObject = new JSONObject();
+        // Keep listening to the InputStream until an exception occurs.
+        while (true) {
+            try {
+                // Read from the InputStream.
+                numBytes = mmInStream.read(mmBuffer);
+                String readMessage = new String(mmBuffer, StandardCharsets.UTF_8);
+                jsonObject = new JSONObject(readMessage);
+                //jsonObject.put("test","check");
+                done = true;
+                break;
 
-    // Call this from the main activity to send data to the remote device.
-    public void write(byte[] bytes) {
-        try {
-            mmOutStream.write(bytes);
+            } catch (IOException e) {
+                done = true;
+                try {
+                    jsonObject.put("test","fail");
+                } catch (JSONException ex) {
+                   // throw new RuntimeException(ex);
+                }
+                //Log.d(TAG, "Input stream was disconnected", e);
+                break;
+            } catch (JSONException e) {
+                done = true;
 
-            // Share the sent message with the UI activity.
-           /* Message writtenMsg = handler.obtainMessage(
-                    MessageConstants.MESSAGE_WRITE, -1, -1, mmBuffer);
-            writtenMsg.sendToTarget();*/
-        } catch (IOException e) {
-            Log.e(TAG, "Error occurred when sending data", e);
-
-            // Send a failure message back to the activity.
-            Message writeErrorMsg =
-                    handler.obtainMessage(MessageConstants.MESSAGE_TOAST);
-            Bundle bundle = new Bundle();
-            bundle.putString("toast",
-                    "Couldn't send data to the other device");
-            writeErrorMsg.setData(bundle);
-            handler.sendMessage(writeErrorMsg);
+                //Log.d(TAG, "Input stream was disconnected", e);
+                break;
+            }
         }
+        cancel();
+        return jsonObject;
     }
+
 
     // Call this method from the main activity to shut down the connection.
     public void cancel() {
@@ -81,9 +91,5 @@ public class SendThread extends Thread implements MessageConstants {
         } catch (IOException e) {
             Log.e(TAG, "Could not close the connect socket", e);
         }
-    }
-
-    public void setMmBuffer(byte[] mmBuffer) {
-        this.mmBuffer = mmBuffer;
     }
 }

@@ -7,20 +7,20 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
-import android.widget.Toast;
 
 import java.io.IOException;
+import java.util.concurrent.Callable;
 
 @SuppressLint("MissingPermission")
 //Only call with permission!
-public class ConnectThread extends Thread {
+public class ConnectRunner implements Callable<BluetoothSocket> {
     private final BluetoothSocket mmSocket;
     private final BluetoothDevice mmDevice;
     String TAG = "HandshakrConnect";
     MainActivity main;
 
 
-    public ConnectThread(MainActivity mainActivity, BluetoothDevice device) {
+    public ConnectRunner(MainActivity mainActivity, BluetoothDevice device) {
         this.main=mainActivity;
         // Use a temporary object that is later assigned to mmSocket
         // because mmSocket is final.
@@ -33,15 +33,16 @@ public class ConnectThread extends Thread {
             // MY_UUID is the app's UUID string, also used in the server code.
             tmp = mmDevice.createRfcommSocketToServiceRecord(main.MY_UUID);
         } catch (IOException e) {
-            Toast failToast = Toast.makeText(main, "Socket's create() method failed", Toast.LENGTH_SHORT);
-            failToast.show();
+            //Toast failToast = Toast.makeText(main, "Socket's create() method failed", Toast.LENGTH_SHORT);
+            //failToast.show();
             Log.e(TAG, "Socket's create() method failed", e);
         }
         mmSocket = tmp;
     }
 
-    public void run() {
+    public BluetoothSocket call() {
         // Cancel discovery because it otherwise slows down the connection.
+        //Toast.makeText(main, "Running Connection", Toast.LENGTH_SHORT).show();
         main.bluetoothAdapter.cancelDiscovery();
 
         try {
@@ -55,12 +56,13 @@ public class ConnectThread extends Thread {
             } catch (IOException closeException) {
                 Log.e(TAG, "Could not close the client socket", closeException);
             }
-            return;
+            return null;
         }
 
         // The connection attempt succeeded. Perform work associated with
         // the connection in a separate thread.
-        main.testSendData(mmSocket);
+        //Toast.makeText(main, "Socket Active", Toast.LENGTH_SHORT).show();
+        return mmSocket;
     }
 
     // Closes the client socket and causes the thread to finish.

@@ -1,5 +1,6 @@
 package com.sxa1508.handshakr;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.bluetooth.BluetoothAdapter;
@@ -10,8 +11,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
-import android.Manifest;
-import android.os.Handler;
 import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.ListPopupWindow;
@@ -30,10 +29,15 @@ import androidx.core.view.WindowInsetsCompat;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -43,16 +47,16 @@ public class MainActivity extends AppCompatActivity {
     public Map<BluetoothDevice, String> btList;
     BTNearbyReceiver btr;
     ArrayAdapter<String> BTnearadapter;
-    ArrayAdapter<String> mConversationArrayAdapter;
     BluetoothManager bluetoothManager;
     BluetoothAdapter bluetoothAdapter;
 
-    AcceptThread acceptThread;
-    ConnectThread connectThread;
-    SendThread sendThread;
-    ReceiveThread receiveThread;
 
-    MsgHandler mHandler;
+    ExecutorService executor;
+    AcceptRunner acceptRunner;
+    ConnectRunner connectRunner;
+    SendRunner sendRunner;
+    ReceiveRunner receiveRunner;
+
 
     //BEGIN ACTIVITY LAUNCHERS
     private ActivityResultLauncher<String[]> requestPermissionLauncher =
@@ -70,7 +74,6 @@ public class MainActivity extends AppCompatActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
-                    Intent data = result.getData();
                 }
             });
 
@@ -97,7 +100,7 @@ public class MainActivity extends AppCompatActivity {
 
         //BEGIN INIT
 
-        mHandler = new MsgHandler().setActivity(this);
+        executor = Executors.newSingleThreadExecutor();
         btList = new HashMap<>();
         btr = new BTNearbyReceiver(this);
         BTnearadapter = new ArrayAdapter<>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
@@ -115,7 +118,6 @@ public class MainActivity extends AppCompatActivity {
         });
 
         registerReceiver(btr, new IntentFilter(BluetoothDevice.ACTION_FOUND));
-
 
 
     }
@@ -179,10 +181,15 @@ public class MainActivity extends AppCompatActivity {
                     if (bluetoothAdapter.getScanMode() == BluetoothAdapter.SCAN_MODE_CONNECTABLE_DISCOVERABLE) {
                         bluetoothAdapter.cancelDiscovery();
                     }
-                        Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-                        requestBTenable.launch(enableDiscoverable);
-                        acceptThread = new AcceptThread(this);
-                        acceptThread.run();
+                    Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+                    requestBTenable.launch(enableDiscoverable);
+                    acceptRunner = new AcceptRunner(this);
+                    Future<?> futureSock = executor.submit(acceptRunner);
+                    try {
+                        testReceiveData((BluetoothSocket) futureSock.get());
+                    } catch (ExecutionException | InterruptedException e) {
+                        throw new RuntimeException(e);
+                    }
 
 
                 } else {
@@ -226,24 +233,26 @@ public class MainActivity extends AppCompatActivity {
         if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
 
             return main.bluetoothAdapter.getBondedDevices().contains(b);
-        }
-        else{
+        } else {
             return false;
         }
 
     }
+
     @SuppressLint("MissingPermission")
     //Only call with permissions!
     public void doPair(MainActivity main, BluetoothDevice b) {
-        Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+        Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         pairedToast.show();
-        connectThread = new ConnectThread(main,b);
-        connectThread.run();
+        connectRunner = new ConnectRunner(main, b);
+        Future<?> futureSock = executor.submit(connectRunner);
+        try {
+            testSendData((BluetoothSocket) futureSock.get());
+        } catch (ExecutionException | InterruptedException e) {
+            throw new RuntimeException(e);
+        }
 
     }
-
-
-
 
 
     @SuppressLint("MissingPermission")
@@ -251,19 +260,20 @@ public class MainActivity extends AppCompatActivity {
     public void testSendData(BluetoothSocket s) {
         //this = mainactivity
         BluetoothDevice b = s.getRemoteDevice();
-        Toast sendToast = Toast.makeText(getApplicationContext(), "Sending test data to " + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+        Toast sendToast = Toast.makeText(getApplicationContext(), "Sending test data to " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         sendToast.show();
 
         JSONObject testData = new JSONObject();
         try {
-            testData.put("user","docsock");
-            testData.put("title","lawnmowing");
-            testData.put("detail","If you mow my lawn on Saturday then I will pay you $50.");
-            testData.put("signature",UUID.randomUUID().toString());
+            testData.put("user", "docsock");
+            testData.put("title", "lawnmowing");
+            testData.put("detail", "If you mow my lawn on Saturday then I will pay you $50.");
+            testData.put("signature", UUID.randomUUID().toString());
             byte[] testDataAsBytes = testData.toString().getBytes(StandardCharsets.UTF_8);
-            sendThread = new SendThread(s, this.mHandler);
-            sendThread.setMmBuffer(testDataAsBytes);
-            sendThread.run();
+            sendRunner = new SendRunner(s);
+            sendRunner.setMmBuffer(testDataAsBytes);
+            executor.execute(sendRunner);
+            s.close();
 
         } catch (Exception e) {
 
@@ -279,11 +289,32 @@ public class MainActivity extends AppCompatActivity {
         //this = mainactivity
 
         BluetoothDevice b = s.getRemoteDevice();
-        Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName()==null?b.getAddress():b.getName()), Toast.LENGTH_SHORT);
+        Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         receiveToast.show();
 
-        receiveThread = new ReceiveThread(s, this.mHandler);
-        receiveThread.run();
+        receiveRunner = new ReceiveRunner(s);
+        Future<?> futureJSON = executor.submit(receiveRunner);
+
+        StringBuilder sb = new StringBuilder();
+
+        try {
+            JSONObject jsonObject = (JSONObject) futureJSON.get();
+            jsonObject.keys().forEachRemaining(keyStr ->
+            {
+                try {
+                    sb.append(keyStr).append(": ").append(jsonObject.get(keyStr)).append("\n");
+                } catch (JSONException e) {
+                    sb.append("ERROR IN JSON DECODING LOOP");
+                }
+            });
+        } catch (ExecutionException | InterruptedException e) {
+            //throw new RuntimeException(e);
+        }
+
+        Toast.makeText(this,sb.toString(),Toast.LENGTH_SHORT).show();
+
+
+
     }
 
 

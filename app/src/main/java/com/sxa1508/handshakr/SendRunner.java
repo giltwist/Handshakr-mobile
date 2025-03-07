@@ -8,25 +8,23 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Message;
 import android.util.Log;
-import android.widget.Toast;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 
 
-public class ReceiveThread extends Thread implements MessageConstants {
+public class SendRunner implements Runnable, MessageConstants {
     private final BluetoothSocket mmSocket;
     private final InputStream mmInStream;
     private final OutputStream mmOutStream;
     private byte[] mmBuffer; // mmBuffer store for the stream
     String TAG = "HandshakrTransfer";
 
-    private MsgHandler handler; // handler that gets info from Bluetooth service
 
-    public ReceiveThread(BluetoothSocket socket, MsgHandler h) {
+
+    public SendRunner(BluetoothSocket socket) {
         mmSocket = socket;
-        handler = h;
         InputStream tmpIn = null;
         OutputStream tmpOut = null;
 
@@ -48,32 +46,23 @@ public class ReceiveThread extends Thread implements MessageConstants {
     }
 
     public void run() {
-        mmBuffer = new byte[1024];
-        int numBytes; // bytes returned from read()
-        boolean done=false;
-
-
-        // Keep listening to the InputStream until an exception occurs.
-        while (!done) {
-            try {
-                // Read from the InputStream.
-                numBytes = mmInStream.read(mmBuffer);
-                // Send the obtained bytes to the UI activity.
-                Message readMsg = handler.obtainMessage(
-                        MessageConstants.JSON_READ, numBytes, -1,
-                        mmBuffer);
-                readMsg.sendToTarget();
-                done=true;
-            } catch (IOException e) {
-                //Toast.makeText(handler.activity, "pong", Toast.LENGTH_LONG).show();
-                done=true;
-                this.cancel();
-                //Log.d(TAG, "Input stream was disconnected", e);
-                break;
-            }
-        }
+        write(mmBuffer);
+        //this.cancel();
     }
 
+    // Call this from the main activity to send data to the remote device.
+    public void write(byte[] bytes) {
+        try {
+            mmOutStream.write(bytes);
+
+            // Share the sent message with the UI activity.
+           /* Message writtenMsg = handler.obtainMessage(
+                    MessageConstants.MESSAGE_WRITE, -1, -1, mmBuffer);
+            writtenMsg.sendToTarget();*/
+        } catch (IOException e) {
+            Log.e(TAG, "Error occurred when sending data", e);
+        }
+    }
 
     // Call this method from the main activity to shut down the connection.
     public void cancel() {
@@ -82,5 +71,9 @@ public class ReceiveThread extends Thread implements MessageConstants {
         } catch (IOException e) {
             Log.e(TAG, "Could not close the connect socket", e);
         }
+    }
+
+    public void setMmBuffer(byte[] mmBuffer) {
+        this.mmBuffer = mmBuffer;
     }
 }
