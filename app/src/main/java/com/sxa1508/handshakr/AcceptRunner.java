@@ -52,18 +52,10 @@ public class AcceptRunner implements Callable<BluetoothSocket> {
                 // A connection was accepted. Perform work associated with
                 // the connection in a separate thread.
 
-                return socket;
+            break;
             }
         }
         return socket;
     }
 
-    // Closes the connect socket and causes the thread to finish.
-    public void cancel() {
-        try {
-            mmServerSocket.close();
-        } catch (IOException e) {
-            Log.e(TAG, "Could not close the connect socket", e);
-        }
-    }
 }

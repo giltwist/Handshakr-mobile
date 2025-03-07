@@ -10,15 +10,10 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
 import android.os.Bundle;
-import android.view.Gravity;
 import android.view.View;
 import android.widget.ArrayAdapter;
-import android.widget.LinearLayout;
 import android.widget.ListPopupWindow;
-import android.widget.PopupWindow;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -32,11 +27,15 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.snackbar.Snackbar;
+import com.google.common.util.concurrent.FutureCallback;
+import com.google.common.util.concurrent.Futures;
+import com.google.common.util.concurrent.ListenableFuture;
+import com.google.common.util.concurrent.ListeningExecutorService;
+import com.google.common.util.concurrent.MoreExecutors;
 
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -59,6 +58,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     ExecutorService executor;
+    ListeningExecutorService listeningExecutor;
     AcceptRunner acceptRunner;
     ConnectRunner connectRunner;
     SendRunner sendRunner;
@@ -108,6 +108,7 @@ public class MainActivity extends AppCompatActivity {
         //BEGIN INIT
 
         executor = Executors.newSingleThreadExecutor();
+        listeningExecutor = MoreExecutors.listeningDecorator(executor);
         btList = new HashMap<>();
         btr = new BTNearbyReceiver(this);
         BTnearadapter = new ArrayAdapter<>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
@@ -119,7 +120,7 @@ public class MainActivity extends AppCompatActivity {
             //Toast choseToast = Toast.makeText(getApplicationContext(), "You chose " + ((BluetoothDevice) btList.keySet().toArray()[position]).getName(), Toast.LENGTH_SHORT);
             //choseToast.show();
 
-            doPair(this, ((BluetoothDevice) btList.keySet().toArray()[position]));
+            doPair(((BluetoothDevice) btList.keySet().toArray()[position]));
 
             BTnearlist.dismiss();
         });
@@ -191,12 +192,19 @@ public class MainActivity extends AppCompatActivity {
                     Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
                     requestBTenable.launch(enableDiscoverable);
                     acceptRunner = new AcceptRunner(this);
-                    Future<?> futureSock = executor.submit(acceptRunner);
-                    try {
-                        testReceiveData((BluetoothSocket) futureSock.get());
-                    } catch (ExecutionException | InterruptedException e) {
-                        throw new RuntimeException(e);
-                    }
+                    ListenableFuture<BluetoothSocket> futureSockReady = listeningExecutor.submit(acceptRunner);
+                    Futures.addCallback(futureSockReady, new FutureCallback<>() {
+                        @Override
+                        public void onSuccess(BluetoothSocket s){
+                            testReceiveData(s);
+                        }
+
+                        @Override
+                        public void onFailure(Throwable t){
+                            //noop
+                        }
+                    },executor);
+
 
 
                 } else {
@@ -248,16 +256,37 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("MissingPermission")
     //Only call with permissions!
-    public void doPair(MainActivity main, BluetoothDevice b) {
-        Toast pairedToast = Toast.makeText(getApplicationContext(), "Pairing with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
+    public void doPair(BluetoothDevice b) {
+        Toast pairedToast = Toast.makeText(this, "Pairing with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         pairedToast.show();
-        connectRunner = new ConnectRunner(main, b);
-        Future<?> futureSock = executor.submit(connectRunner);
+        bluetoothAdapter.cancelDiscovery();
+        connectRunner = new ConnectRunner(MY_UUID, b);
+        Future<BluetoothSocket> futureSockPair = executor.submit(connectRunner);
+        //ListenableFuture<BluetoothSocket> futureSockPair = listeningExecutor.submit(connectRunner);
         try {
-            testSendData((BluetoothSocket) futureSock.get());
-        } catch (ExecutionException | InterruptedException e) {
+            testSendData(futureSockPair.get());
+        } catch (ExecutionException e) {
+            throw new RuntimeException(e);
+        } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
+
+        /*
+        Futures.addCallback(futureSockPair, new FutureCallback<>() {
+            @Override
+            public void onSuccess(BluetoothSocket s){
+                Toast.makeText(getApplicationContext(),"Pairing successful", Toast.LENGTH_SHORT).show();
+                testSendData(s);
+            }
+
+            @Override
+            public void onFailure(Throwable t){
+                Toast.makeText(getApplicationContext(),"Pairing Failed", Toast.LENGTH_SHORT).show();
+            }
+        },executor);
+*/
+
+
 
     }
 
@@ -267,7 +296,7 @@ public class MainActivity extends AppCompatActivity {
     public void testSendData(BluetoothSocket s) {
         //this = mainactivity
         BluetoothDevice b = s.getRemoteDevice();
-        Toast sendToast = Toast.makeText(getApplicationContext(), "Sending test data to " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
+        Toast sendToast = Toast.makeText(this, "Sending test data to " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         sendToast.show();
 
         JSONObject testData = new JSONObject();
@@ -295,32 +324,39 @@ public class MainActivity extends AppCompatActivity {
     public void testReceiveData(BluetoothSocket s) {
         //this = mainactivity
 
-        BluetoothDevice b = s.getRemoteDevice();
+       //BluetoothDevice b = s.getRemoteDevice();
         //Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         //receiveToast.show();
 
         receiveRunner = new ReceiveRunner(s);
-        Future<?> futureJSON = executor.submit(receiveRunner);
+        ListenableFuture<JSONObject> futureJSON = listeningExecutor.submit(receiveRunner);
 
-        StringBuilder sb = new StringBuilder();
+        Futures.addCallback(futureJSON, new FutureCallback<>() {
+            @Override
+            public void onSuccess(JSONObject j){
+                StringBuilder sb = new StringBuilder();
 
-        try {
-            JSONObject jsonObject = (JSONObject) futureJSON.get();
-            jsonObject.keys().forEachRemaining(keyStr ->
-            {
-                try {
-                    sb.append(keyStr).append(": ").append(jsonObject.get(keyStr)).append("\n");
-                } catch (JSONException e) {
-                    sb.append("ERROR IN JSON DECODING LOOP");
-                }
-            });
-        } catch (ExecutionException | InterruptedException e) {
-            //throw new RuntimeException(e);
-        }
+                j.keys().forEachRemaining(keyStr ->
+                {
+                    try {
+                        sb.append(keyStr).append(": ").append(j.get(keyStr)).append("\n");
+                    } catch (JSONException e) {
+                        sb.append("ERROR IN JSON DECODING LOOP");
+                    }
+                });
 
-        Snackbar snackbar = Snackbar.make(findViewById(R.id.main), sb.toString(), Snackbar.LENGTH_LONG);
-        snackbar.setTextMaxLines(10);
-        snackbar.show();
+                Snackbar snackbar = Snackbar.make(findViewById(R.id.main), sb.toString(), Snackbar.LENGTH_LONG);
+                snackbar.setTextMaxLines(10);
+                snackbar.show();
+            }
+
+            @Override
+            public void onFailure(Throwable t){
+                //noop
+            }
+        },executor);
+
+
 
 
 
