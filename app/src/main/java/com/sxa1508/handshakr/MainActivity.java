@@ -13,6 +13,7 @@ import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.EditText;
 import android.widget.ListPopupWindow;
 import android.widget.Toast;
 
@@ -64,6 +65,10 @@ public class MainActivity extends AppCompatActivity {
     SendRunner sendRunner;
     ReceiveRunner receiveRunner;
 
+    EditText userName;
+    EditText dealTitle;
+    EditText dealDesc;
+
 
     //BEGIN ACTIVITY LAUNCHERS
     private ActivityResultLauncher<String[]> requestPermissionLauncher =
@@ -106,6 +111,9 @@ public class MainActivity extends AppCompatActivity {
         });
 
         //BEGIN INIT
+        userName = (EditText) findViewById(R.id.userName);
+        dealTitle = (EditText) findViewById(R.id.dealTitle);
+        dealDesc = (EditText) findViewById(R.id.dealDetail);
 
         executor = Executors.newSingleThreadExecutor();
         listeningExecutor = MoreExecutors.listeningDecorator(executor);
@@ -221,25 +229,31 @@ public class MainActivity extends AppCompatActivity {
     //Has a permission check but linter doesn't see it
     public void doDiscover(View view) {
 
-        if (hasBTPerms()) {
+        if (userName.getText().isEmpty()||dealTitle.getText().isEmpty()||dealDesc.getText().isEmpty()) {
+            Toast.makeText(getApplicationContext(), "Fill out the deal form first", Toast.LENGTH_SHORT).show();
+        } else {
 
 
-            if (bluetoothAdapter == null) {
-                Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "No BT functionality detected", Toast.LENGTH_SHORT);
-                hasntBTtoast.show();
-            } else {
-                if (bluetoothAdapter.isEnabled()) {
-                    bluetoothAdapter.startDiscovery();
+            if (hasBTPerms()) {
 
-                    BTnearlist.setAnchorView(view);
-                    BTnearlist.show();
+
+                if (bluetoothAdapter == null) {
+                    Toast.makeText(getApplicationContext(), "No BT functionality detected", Toast.LENGTH_SHORT).show();
 
                 } else {
-                    Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT);
-                    hasntBTtoast.show();
-                }
-            }
+                    if (bluetoothAdapter.isEnabled()) {
+                        bluetoothAdapter.startDiscovery();
 
+                        BTnearlist.setAnchorView(view);
+                        BTnearlist.show();
+
+                    } else {
+                        Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT).show();
+
+                    }
+                }
+
+            }
         }
 
     }
@@ -301,9 +315,9 @@ public class MainActivity extends AppCompatActivity {
 
         JSONObject testData = new JSONObject();
         try {
-            testData.put("user", "docsock");
-            testData.put("title", "lawnmowing");
-            testData.put("detail", "If you mow my lawn on Saturday then I will pay you $50.");
+            testData.put("user", userName.getText().toString());
+            testData.put("title", dealTitle.getText().toString());
+            testData.put("detail", dealDesc.getText().toString());
             testData.put("signature", UUID.randomUUID().toString());
             byte[] testDataAsBytes = testData.toString().getBytes(StandardCharsets.UTF_8);
             sendRunner = new SendRunner(s);
