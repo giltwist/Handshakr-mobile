@@ -36,7 +36,11 @@ import com.google.common.util.concurrent.MoreExecutors;
 
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.pgpainless.sop.SOPImpl;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -45,6 +49,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+
+import sop.ByteArrayAndResult;
+import sop.DecryptionResult;
+import sop.ReadyWithResult;
+import sop.SOP;
+import sop.exception.SOPGPException;
 
 public class MainActivity extends AppCompatActivity {
 
@@ -203,16 +213,15 @@ public class MainActivity extends AppCompatActivity {
                     ListenableFuture<BluetoothSocket> futureSockReady = listeningExecutor.submit(acceptRunner);
                     Futures.addCallback(futureSockReady, new FutureCallback<>() {
                         @Override
-                        public void onSuccess(BluetoothSocket s){
-                            testReceiveData(s);
+                        public void onSuccess(BluetoothSocket s) {
+                            ReceiveData(s);
                         }
 
                         @Override
-                        public void onFailure(Throwable t){
+                        public void onFailure(Throwable t) {
                             //noop
                         }
-                    },executor);
-
+                    }, executor);
 
 
                 } else {
@@ -229,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
     //Has a permission check but linter doesn't see it
     public void doDiscover(View view) {
 
-        if (userName.getText().isEmpty()||dealTitle.getText().isEmpty()||dealDesc.getText().isEmpty()) {
+        if (userName.getText().isEmpty() || dealTitle.getText().isEmpty() || dealDesc.getText().isEmpty()) {
             Toast.makeText(getApplicationContext(), "Fill out the deal form first", Toast.LENGTH_SHORT).show();
         } else {
 
@@ -278,7 +287,7 @@ public class MainActivity extends AppCompatActivity {
         Future<BluetoothSocket> futureSockPair = executor.submit(connectRunner);
         //ListenableFuture<BluetoothSocket> futureSockPair = listeningExecutor.submit(connectRunner);
         try {
-            testSendData(futureSockPair.get());
+            SendData(futureSockPair.get());
         } catch (ExecutionException e) {
             throw new RuntimeException(e);
         } catch (InterruptedException e) {
@@ -301,13 +310,12 @@ public class MainActivity extends AppCompatActivity {
 */
 
 
-
     }
 
 
     @SuppressLint("MissingPermission")
     //Only call with permissions!
-    public void testSendData(BluetoothSocket s) {
+    public void SendData(BluetoothSocket s) {
         //this = mainactivity
         BluetoothDevice b = s.getRemoteDevice();
         Toast sendToast = Toast.makeText(this, "Sending test data to " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
@@ -335,10 +343,10 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("MissingPermission")
     //Only call with permissions!
-    public void testReceiveData(BluetoothSocket s) {
+    public void ReceiveData(BluetoothSocket s) {
         //this = mainactivity
 
-       //BluetoothDevice b = s.getRemoteDevice();
+        //BluetoothDevice b = s.getRemoteDevice();
         //Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
         //receiveToast.show();
 
@@ -347,7 +355,7 @@ public class MainActivity extends AppCompatActivity {
 
         Futures.addCallback(futureJSON, new FutureCallback<>() {
             @Override
-            public void onSuccess(JSONObject j){
+            public void onSuccess(JSONObject j) {
                 StringBuilder sb = new StringBuilder();
 
                 j.keys().forEachRemaining(keyStr ->
@@ -365,13 +373,76 @@ public class MainActivity extends AppCompatActivity {
             }
 
             @Override
-            public void onFailure(Throwable t){
+            public void onFailure(Throwable t) {
                 //noop
             }
-        },executor);
+        }, executor);
+    }
+
+
+    public void testEncryption(View view) {
+
+        SOP sop = new SOPImpl();
+
+        try {
+            byte[] alicePrivateKey = sop.generateKey()
+                    .userId("alice")
+                    .generate()
+                    .getBytes();
+
+            byte[] alicePublicKey = sop.extractCert().key(alicePrivateKey).getBytes();
+
+            byte[] bobPrivateKey = sop.generateKey()
+                    .userId("bob")
+                    .generate()
+                    .getBytes();
+
+            byte[] bobPublicKey = sop.extractCert().key(bobPrivateKey).getBytes();
+
+            byte[] malloryPrivateKey = sop.generateKey()
+                    .userId("mallory")
+                    .generate()
+                    .getBytes();
+
+            byte[] malloryPublicKey = sop.extractCert().key(bobPrivateKey).getBytes();
+
+            //Snackbar.make(view, new String(alicePublicKey), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+
+            String secretMessage = "Lorem Ipsum";
+            byte[] plaintext = secretMessage.getBytes(StandardCharsets.UTF_8);
+            byte[] ciphertext = sop.encrypt()
+                    .withCert(alicePublicKey)
+                    .withCert(bobPublicKey)
+                    .signWith(alicePrivateKey)
+                    .signWith(bobPrivateKey)
+                    .plaintext(plaintext)
+                    .toByteArrayAndResult().getBytes();
+
+            //Snackbar.make(view, new String(ciphertext), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+
+
+            ReadyWithResult<DecryptionResult> readyWithResult = sop.decrypt()
+                    .withKey(alicePrivateKey)
+                    .verifyWithCert(alicePublicKey)
+                    .verifyWithCert(bobPublicKey)
+                    .ciphertext(ciphertext);
+            ByteArrayAndResult<DecryptionResult> bytesAndResult = readyWithResult.toByteArrayAndResult();
+            DecryptionResult result = bytesAndResult.getResult();
+            byte[] resultText = bytesAndResult.getBytes();
+
+            String decryptedMessage = new String(resultText);                    ;
+
+            //Snackbar.make(view, decryptedMessage, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+
+            //Snackbar.make(view, Integer.toString(result.getVerifications().size()), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
 
 
 
+        } catch (IOException e) {
+            //no-op
+        } catch (SOPGPException.CannotDecrypt e){
+            Snackbar.make(view, "Invalid decryption key used", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+        }
 
 
     }

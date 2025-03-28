@@ -32,6 +32,9 @@ android {
     buildFeatures {
         viewBinding = true
     }
+    packaging {
+        resources.excludes.add("META-INF/versions/9/OSGI-INF/MANIFEST.MF")
+    }
 }
 
 dependencies {
@@ -43,6 +46,7 @@ dependencies {
     implementation(libs.legacy.support.v4)
     implementation(libs.recyclerview)
     implementation("com.google.guava:guava:33.4.0-android")
+    implementation("org.pgpainless:pgpainless-sop:1.7.5")
     testImplementation(libs.junit)
     androidTestImplementation(libs.ext.junit)
     androidTestImplementation(libs.espresso.core)
