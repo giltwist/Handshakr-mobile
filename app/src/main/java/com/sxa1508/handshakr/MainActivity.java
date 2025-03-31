@@ -1,5 +1,7 @@
 package com.sxa1508.handshakr;
 
+import static android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED;
+
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -10,6 +12,9 @@ import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
+import android.net.ConnectivityManager;
+import android.net.LinkProperties;
+import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -27,6 +32,18 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
+import com.android.volley.AuthFailureError;
+import com.android.volley.Cache;
+import com.android.volley.Network;
+import com.android.volley.Request;
+import com.android.volley.RequestQueue;
+import com.android.volley.Response;
+import com.android.volley.VolleyError;
+import com.android.volley.VolleyLog;
+import com.android.volley.toolbox.BasicNetwork;
+import com.android.volley.toolbox.DiskBasedCache;
+import com.android.volley.toolbox.HurlStack;
+import com.android.volley.toolbox.StringRequest;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -41,6 +58,7 @@ import org.pgpainless.sop.SOPImpl;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -430,20 +448,119 @@ public class MainActivity extends AppCompatActivity {
             DecryptionResult result = bytesAndResult.getResult();
             byte[] resultText = bytesAndResult.getBytes();
 
-            String decryptedMessage = new String(resultText);                    ;
+            String decryptedMessage = new String(resultText);
+            ;
 
             //Snackbar.make(view, decryptedMessage, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
 
             //Snackbar.make(view, Integer.toString(result.getVerifications().size()), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
 
 
-
         } catch (IOException e) {
             //no-op
-        } catch (SOPGPException.CannotDecrypt e){
+        } catch (SOPGPException.CannotDecrypt e) {
             Snackbar.make(view, "Invalid decryption key used", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
         }
 
+
+    }
+
+    public void testVolley(View view) {
+        //BEGIN NET CHECK
+
+        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
+        android.net.Network currentNetwork = connectivityManager.getActiveNetwork();
+
+        if (currentNetwork != null) {
+            NetworkCapabilities caps = connectivityManager.getNetworkCapabilities(currentNetwork);
+            LinkProperties linkProperties = connectivityManager.getLinkProperties(currentNetwork);
+
+            if (caps.hasCapability(NET_CAPABILITY_VALIDATED)) {
+
+                //BEGIN VOLLEY
+                RequestQueue requestQueue;
+                // Instantiate the cache
+                Cache cache = new DiskBasedCache(getCacheDir(), 1024 * 1024); // 1MB cap
+                // Set up the network to use HttpURLConnection as the HTTP client.
+                com.android.volley.Network network = new BasicNetwork(new HurlStack());
+                // Instantiate the RequestQueue with the cache and network.
+                requestQueue = new RequestQueue(cache, network);
+                // Start the queue
+                requestQueue.start();
+
+
+
+                // Formulate the request and handle the response.
+                //GET TEST
+                String geturl = "https://jsonplaceholder.typicode.com/todos/1";
+                StringRequest getRequest = new StringRequest(Request.Method.GET, geturl,
+                        new Response.Listener<String>() {
+                            @Override
+                            public void onResponse(String response) {
+                                Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+                            }
+                        },
+                        new Response.ErrorListener() {
+                            @Override
+                            public void onErrorResponse(VolleyError error) {
+                                Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+                            }
+                        });
+                // Add the request to the RequestQueue.
+                //requestQueue.add(getRequest);
+
+                //POST TEST
+                String posturl = "https://jsonplaceholder.typicode.com/posts";
+                StringRequest postRequest = new StringRequest(Request.Method.POST, posturl,
+                        new Response.Listener<String>() {
+                            @Override
+                            public void onResponse(String response) {
+                                Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+                            }
+                        },
+                        new Response.ErrorListener() {
+                            @Override
+                            public void onErrorResponse(VolleyError error) {
+                                Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+                            }
+                        }){
+                    @Override
+                    public byte[] getBody() throws AuthFailureError {
+                        JSONObject jsonBody = new JSONObject();
+                        try {
+                            jsonBody.put("title", "Alice");
+                            jsonBody.put("body", "Lorem Ipsum");
+                            jsonBody.put("userId", 86);
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                        final String requestBody = jsonBody.toString();
+                        try {
+                            return requestBody == null ? null : requestBody.getBytes("utf-8");
+                        } catch (UnsupportedEncodingException uee) {
+                            VolleyLog.wtf("Unsupported Encoding while trying to get the bytes of %s using %s", requestBody, "utf-8");
+                            return null;
+                        }
+                    }
+                    @Override
+                    public String getBodyContentType() {
+                        return "application/json; charset=utf-8";
+                    }
+                    };
+
+                // Add the request to the RequestQueue.
+                requestQueue.add(postRequest);
+
+
+            } else {
+                Snackbar.make(view, "No internet access", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+            }
+
+
+        } else{
+            Snackbar.make(view, "No internet connection", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+        }
 
     }
 
