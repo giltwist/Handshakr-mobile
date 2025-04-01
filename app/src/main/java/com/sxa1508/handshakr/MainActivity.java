@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -18,6 +19,7 @@ import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListPopupWindow;
 import android.widget.Toast;
@@ -95,16 +97,19 @@ public class MainActivity extends AppCompatActivity {
     EditText dealTitle;
     EditText dealDesc;
 
+    Button permButton;
+    Button enableButton;
+
 
     //BEGIN ACTIVITY LAUNCHERS
     private ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), isGranted -> {
                 if (isGranted.containsValue(false)) {
-                    Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "At least one permission was denied", Toast.LENGTH_SHORT);
-                    hasntBTtoast.show();
+                    Toast.makeText(getApplicationContext(), "At least one permission was denied", Toast.LENGTH_SHORT).show();
+                    permButton.setVisibility(View.VISIBLE);
                 } else {
-                    Toast hasBTtoast = Toast.makeText(getApplicationContext(), "All perms granted", Toast.LENGTH_SHORT);
-                    hasBTtoast.show();
+                    Toast.makeText(getApplicationContext(), "All perms granted", Toast.LENGTH_SHORT).show();
+                    permButton.setVisibility(View.INVISIBLE);
                 }
             });
 
@@ -125,6 +130,8 @@ public class MainActivity extends AppCompatActivity {
             });
 
 
+
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -141,6 +148,15 @@ public class MainActivity extends AppCompatActivity {
         userName = (EditText) findViewById(R.id.userName);
         dealTitle = (EditText) findViewById(R.id.dealTitle);
         dealDesc = (EditText) findViewById(R.id.dealDetail);
+        permButton = (Button) findViewById(R.id.permButton);
+        enableButton = (Button) findViewById(R.id.enableButton);
+
+        permButton.setVisibility(hasBTPerms()?View.GONE:View.VISIBLE);
+        enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled()?View.GONE:View.VISIBLE);
+
+        BTStateChangeReceiver btSCR = new BTStateChangeReceiver(enableButton,bluetoothAdapter);
+        IntentFilter filter = new IntentFilter("android.bluetooth.adapter.action.STATE_CHANGED");
+        registerReceiver(btSCR, filter);
 
         executor = Executors.newSingleThreadExecutor();
         listeningExecutor = MoreExecutors.listeningDecorator(executor);

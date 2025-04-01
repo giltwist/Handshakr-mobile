@@ -8,71 +8,78 @@
     tools:context=".MainActivity">
 
     <Button
-        android:id="@+id/button"
+        android:id="@+id/permButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:backgroundTint="@color/DarkBlue"
         android:onClick="getBTperms"
         android:text="Request BT Perms"
+        android:textColor="@color/white"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:layout_constraintVertical_bias="0.247" />
+        app:layout_constraintTop_toBottomOf="@+id/imageView"
+        app:layout_constraintVertical_bias="0.106" />
 
     <Button
-        android:id="@+id/button2"
+        android:id="@+id/enableButton"
+        android:backgroundTint="@color/DarkBlue"
+        android:textColor="@color/white"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:onClick="enableBT"
         android:text="Enable BT"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button" />
+        app:layout_constraintTop_toBottomOf="@+id/permButton" />
 
     <Button
         android:id="@+id/button3"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:backgroundTint="@color/DarkBlue"
         android:onClick="beDiscoverable"
-        android:text="Be Discoverable"
-        app:layout_constraintEnd_toStartOf="@+id/button2"
-        app:layout_constraintHorizontal_bias="1.0"
+        android:text="Allow Offers"
+        android:textColor="@color/white"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button2" />
+        app:layout_constraintTop_toBottomOf="@+id/dealDetail" />
 
     <Button
         android:id="@+id/button4"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:backgroundTint="@color/DarkBlue"
         android:onClick="doDiscover"
-        android:text="Discover Partner"
+        android:text="Make Offer"
+        android:textColor="@color/white"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="1.0"
-        app:layout_constraintStart_toEndOf="@+id/button2"
-        app:layout_constraintTop_toBottomOf="@+id/button2" />
+        app:layout_constraintTop_toBottomOf="@+id/dealDetail" />
 
     <EditText
         android:id="@+id/userName"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="120dp"
+        android:layout_marginBottom="392dp"
         android:background="@android:drawable/editbox_background"
         android:ems="10"
         android:hint="Username"
         android:inputType="text"
         android:lines="1"
         android:maxLines="1"
+        android:minHeight="48dp"
         android:textColor="@color/black"
+        android:textColorHint="@color/DarkBlue"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.203"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/button2"
+        app:layout_constraintTop_toBottomOf="@+id/enableButton"
         tools:text="@tools:sample/first_names" />
 
     <EditText
         android:id="@+id/dealDetail"
-        android:layout_width="330dp"
-        android:layout_height="148dp"
+        android:layout_width="331dp"
+        android:layout_height="149dp"
         android:background="@android:drawable/editbox_dropdown_light_frame"
         android:ems="10"
         android:gravity="start|top"
@@ -80,12 +87,13 @@
         android:inputType="textMultiLine"
         android:scrollbars="vertical"
         android:textColor="@color/black"
+        android:textColorHint="@color/DarkBlue"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.506"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/dealTitle"
-        app:layout_constraintVertical_bias="0.079"
+        app:layout_constraintVertical_bias="0.2"
         tools:text="@tools:sample/lorem/random" />
 
     <EditText
@@ -98,7 +106,9 @@
         android:inputType="text"
         android:lines="1"
         android:maxLines="1"
+        android:minHeight="48dp"
         android:textColor="@color/black"
+        android:textColorHint="@color/DarkBlue"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintHorizontal_bias="0.203"
         app:layout_constraintStart_toStartOf="parent"
@@ -106,25 +116,35 @@
         tools:text="@tools:sample/lorem" />
 
     <Button
+        android:id="@+id/button6"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="28dp"
+        android:backgroundTint="@color/DarkBlue"
+        android:onClick="testVolley"
+        android:text="Volley Test"
+        android:textColor="@color/white"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/imageView" />
+
+    <Button
         android:id="@+id/button5"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="16dp"
-        android:layout_marginTop="16dp"
+        android:backgroundTint="@color/DarkBlue"
         android:onClick="testEncryption"
         android:text="Encryption Test"
+        android:textColor="@color/white"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@+id/imageView" />
 
-    <Button
-        android:id="@+id/button6"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
-        android:layout_marginEnd="12dp"
-        android:onClick="testVolley"
-        android:text="Volley Test"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+    <ImageView
+        android:id="@+id/imageView"
+        android:layout_width="428dp"
+        android:layout_height="108dp"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:srcCompat="@drawable/handshakr_banner" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
