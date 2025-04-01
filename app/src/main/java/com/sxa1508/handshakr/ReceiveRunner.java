@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.Callable;
 
 
-public class ReceiveRunner implements Callable<JSONObject>, MessageConstants {
+public class ReceiveRunner implements Callable<JSONObject>{
     private final BluetoothSocket mmSocket;
     private final InputStream mmInStream;
     private final OutputStream mmOutStream;

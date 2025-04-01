@@ -25,6 +25,7 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -34,7 +35,6 @@ import androidx.core.view.WindowInsetsCompat;
 
 import com.android.volley.AuthFailureError;
 import com.android.volley.Cache;
-import com.android.volley.Network;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
@@ -55,9 +55,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.pgpainless.sop.SOPImpl;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -114,6 +112,7 @@ public class MainActivity extends AppCompatActivity {
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
+                    //noop
                 }
             });
 
@@ -306,9 +305,7 @@ public class MainActivity extends AppCompatActivity {
         //ListenableFuture<BluetoothSocket> futureSockPair = listeningExecutor.submit(connectRunner);
         try {
             SendData(futureSockPair.get());
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
+        } catch (ExecutionException | InterruptedException e) {
             throw new RuntimeException(e);
         }
 
@@ -449,7 +446,7 @@ public class MainActivity extends AppCompatActivity {
             byte[] resultText = bytesAndResult.getBytes();
 
             String decryptedMessage = new String(resultText);
-            ;
+
 
             //Snackbar.make(view, decryptedMessage, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
 
@@ -475,16 +472,17 @@ public class MainActivity extends AppCompatActivity {
             NetworkCapabilities caps = connectivityManager.getNetworkCapabilities(currentNetwork);
             LinkProperties linkProperties = connectivityManager.getLinkProperties(currentNetwork);
 
+            assert caps != null;
             if (caps.hasCapability(NET_CAPABILITY_VALIDATED)) {
 
                 //BEGIN VOLLEY
-                RequestQueue requestQueue;
+
                 // Instantiate the cache
                 Cache cache = new DiskBasedCache(getCacheDir(), 1024 * 1024); // 1MB cap
                 // Set up the network to use HttpURLConnection as the HTTP client.
                 com.android.volley.Network network = new BasicNetwork(new HurlStack());
                 // Instantiate the RequestQueue with the cache and network.
-                requestQueue = new RequestQueue(cache, network);
+                RequestQueue requestQueue = new RequestQueue(cache, network);
                 // Start the queue
                 requestQueue.start();
 
@@ -492,62 +490,7 @@ public class MainActivity extends AppCompatActivity {
 
                 // Formulate the request and handle the response.
                 //GET TEST
-                String geturl = "https://jsonplaceholder.typicode.com/todos/1";
-                StringRequest getRequest = new StringRequest(Request.Method.GET, geturl,
-                        new Response.Listener<String>() {
-                            @Override
-                            public void onResponse(String response) {
-                                Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-                            }
-                        },
-                        new Response.ErrorListener() {
-                            @Override
-                            public void onErrorResponse(VolleyError error) {
-                                Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-                            }
-                        });
-                // Add the request to the RequestQueue.
-                //requestQueue.add(getRequest);
-
-                //POST TEST
-                String posturl = "https://jsonplaceholder.typicode.com/posts";
-                StringRequest postRequest = new StringRequest(Request.Method.POST, posturl,
-                        new Response.Listener<String>() {
-                            @Override
-                            public void onResponse(String response) {
-                                Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-                            }
-                        },
-                        new Response.ErrorListener() {
-                            @Override
-                            public void onErrorResponse(VolleyError error) {
-                                Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-                            }
-                        }){
-                    @Override
-                    public byte[] getBody() throws AuthFailureError {
-                        JSONObject jsonBody = new JSONObject();
-                        try {
-                            jsonBody.put("title", "Alice");
-                            jsonBody.put("body", "Lorem Ipsum");
-                            jsonBody.put("userId", 86);
-                        } catch (JSONException e) {
-                            throw new RuntimeException(e);
-                        }
-
-                        final String requestBody = jsonBody.toString();
-                        try {
-                            return requestBody == null ? null : requestBody.getBytes("utf-8");
-                        } catch (UnsupportedEncodingException uee) {
-                            VolleyLog.wtf("Unsupported Encoding while trying to get the bytes of %s using %s", requestBody, "utf-8");
-                            return null;
-                        }
-                    }
-                    @Override
-                    public String getBodyContentType() {
-                        return "application/json; charset=utf-8";
-                    }
-                    };
+                StringRequest postRequest = getStringRequest(view);
 
                 // Add the request to the RequestQueue.
                 requestQueue.add(postRequest);
@@ -562,6 +505,42 @@ public class MainActivity extends AppCompatActivity {
             Snackbar.make(view, "No internet connection", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
         }
 
+    }
+
+    @NonNull
+    private static StringRequest getStringRequest(View view) {
+        String geturl = "https://jsonplaceholder.typicode.com/todos/1";
+        StringRequest getRequest = new StringRequest(Request.Method.GET, geturl,
+                response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
+                error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
+        // Add the request to the RequestQueue.
+        //requestQueue.add(getRequest);
+
+        //POST TEST
+        String posturl = "https://jsonplaceholder.typicode.com/posts";
+        StringRequest postRequest = new StringRequest(Request.Method.POST, posturl,
+                response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
+                error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
+            @Override
+            public byte[] getBody() throws AuthFailureError {
+                JSONObject jsonBody = new JSONObject();
+                try {
+                    jsonBody.put("title", "Alice");
+                    jsonBody.put("body", "Lorem Ipsum");
+                    jsonBody.put("userId", 86);
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+
+                final String requestBody = jsonBody.toString();
+                return requestBody == null ? null : requestBody.getBytes(StandardCharsets.UTF_8);
+            }
+            @Override
+            public String getBodyContentType() {
+                return "application/json; charset=utf-8";
+            }
+            };
+        return postRequest;
     }
 
 

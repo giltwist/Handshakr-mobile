@@ -14,7 +14,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 
-public class SendRunner implements Runnable, MessageConstants {
+public class SendRunner implements Runnable{
     private final BluetoothSocket mmSocket;
     private final InputStream mmInStream;
     private final OutputStream mmOutStream;
