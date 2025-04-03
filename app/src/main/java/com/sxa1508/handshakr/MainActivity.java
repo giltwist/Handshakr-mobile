@@ -45,6 +45,7 @@ import com.android.volley.VolleyLog;
 import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.DiskBasedCache;
 import com.android.volley.toolbox.HurlStack;
+import com.android.volley.toolbox.JsonRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.common.util.concurrent.FutureCallback;
@@ -506,10 +507,66 @@ public class MainActivity extends AppCompatActivity {
 
                 // Formulate the request and handle the response.
                 //GET TEST
-                StringRequest postRequest = getStringRequest(view);
-
+                String geturl = "https://jsonplaceholder.typicode.com/todos/1";
+                StringRequest getRequest = new StringRequest(Request.Method.GET, geturl,
+                        response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
+                        error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
                 // Add the request to the RequestQueue.
-                requestQueue.add(postRequest);
+                //requestQueue.add(getRequest);
+
+
+                //POST TEST
+                String posturl = "https://jsonplaceholder.typicode.com/posts";
+                StringRequest postRequest = new StringRequest(Request.Method.POST, posturl,
+                        response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
+                        error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
+                    @Override
+                    public byte[] getBody() throws AuthFailureError {
+                        JSONObject jsonBody = new JSONObject();
+                        try {
+                            jsonBody.put("title", "Alice");
+                            jsonBody.put("body", "Lorem Ipsum");
+                            jsonBody.put("userId", 86);
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                        final String requestBody = jsonBody.toString();
+                        return requestBody == null ? null : requestBody.getBytes(StandardCharsets.UTF_8);
+                    }
+                    @Override
+                    public String getBodyContentType() {
+                        return "application/json; charset=utf-8";
+                    }
+                };
+                // Add the request to the RequestQueue.
+                //requestQueue.add(postRequest);
+
+
+                //LOGIN TEST
+                String loginURL = "https://handshakr.duckdns.org/auth/login";
+                StringRequest loginRequest = new StringRequest(Request.Method.POST, loginURL,
+                        response -> Snackbar.make(view, response.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(30).show(),
+                        error -> Snackbar.make(view, "Volley Error: " + error, Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
+                    @Override
+                    public byte[] getBody() throws AuthFailureError {
+                        JSONObject jsonBody = new JSONObject();
+                        try {
+                            jsonBody.put("username", "user1");
+                            jsonBody.put("password", "password");
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                        final String requestBody = jsonBody.toString();
+                        return requestBody == null ? null : requestBody.getBytes(StandardCharsets.UTF_8);
+                    }
+                    @Override
+                    public String getBodyContentType() {
+                        return "application/json; charset=utf-8";
+                    }
+                };
+                // Add the request to the RequestQueue.
+                requestQueue.add(loginRequest);
+
 
 
             } else {
@@ -523,41 +580,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    @NonNull
-    private static StringRequest getStringRequest(View view) {
-        String geturl = "https://jsonplaceholder.typicode.com/todos/1";
-        StringRequest getRequest = new StringRequest(Request.Method.GET, geturl,
-                response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
-                error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
-        // Add the request to the RequestQueue.
-        //requestQueue.add(getRequest);
-
-        //POST TEST
-        String posturl = "https://jsonplaceholder.typicode.com/posts";
-        StringRequest postRequest = new StringRequest(Request.Method.POST, posturl,
-                response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
-                error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
-            @Override
-            public byte[] getBody() throws AuthFailureError {
-                JSONObject jsonBody = new JSONObject();
-                try {
-                    jsonBody.put("title", "Alice");
-                    jsonBody.put("body", "Lorem Ipsum");
-                    jsonBody.put("userId", 86);
-                } catch (JSONException e) {
-                    throw new RuntimeException(e);
-                }
-
-                final String requestBody = jsonBody.toString();
-                return requestBody == null ? null : requestBody.getBytes(StandardCharsets.UTF_8);
-            }
-            @Override
-            public String getBodyContentType() {
-                return "application/json; charset=utf-8";
-            }
-            };
-        return postRequest;
-    }
 
 
 }
