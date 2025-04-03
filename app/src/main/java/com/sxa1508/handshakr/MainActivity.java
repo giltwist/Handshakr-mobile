@@ -9,7 +9,6 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothSocket;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -27,7 +26,6 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -39,13 +37,9 @@ import com.android.volley.AuthFailureError;
 import com.android.volley.Cache;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
-import com.android.volley.Response;
-import com.android.volley.VolleyError;
-import com.android.volley.VolleyLog;
 import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.DiskBasedCache;
 import com.android.volley.toolbox.HurlStack;
-import com.android.volley.toolbox.JsonRequest;
 import com.android.volley.toolbox.StringRequest;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.common.util.concurrent.FutureCallback;
@@ -59,7 +53,6 @@ import org.json.JSONObject;
 import org.pgpainless.sop.SOPImpl;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
@@ -504,68 +497,34 @@ public class MainActivity extends AppCompatActivity {
                 requestQueue.start();
 
 
-
-                // Formulate the request and handle the response.
-                //GET TEST
-                String geturl = "https://jsonplaceholder.typicode.com/todos/1";
-                StringRequest getRequest = new StringRequest(Request.Method.GET, geturl,
-                        response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
-                        error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
-                // Add the request to the RequestQueue.
-                //requestQueue.add(getRequest);
-
-
-                //POST TEST
-                String posturl = "https://jsonplaceholder.typicode.com/posts";
-                StringRequest postRequest = new StringRequest(Request.Method.POST, posturl,
-                        response -> Snackbar.make(view, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
-                        error -> Snackbar.make(view, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
-                    @Override
-                    public byte[] getBody() throws AuthFailureError {
-                        JSONObject jsonBody = new JSONObject();
-                        try {
-                            jsonBody.put("title", "Alice");
-                            jsonBody.put("body", "Lorem Ipsum");
-                            jsonBody.put("userId", 86);
-                        } catch (JSONException e) {
-                            throw new RuntimeException(e);
-                        }
-                        final String requestBody = jsonBody.toString();
-                        return requestBody == null ? null : requestBody.getBytes(StandardCharsets.UTF_8);
-                    }
-                    @Override
-                    public String getBodyContentType() {
-                        return "application/json; charset=utf-8";
-                    }
-                };
-                // Add the request to the RequestQueue.
-                //requestQueue.add(postRequest);
-
-
-                //LOGIN TEST
+                //BEGIN LOGIN
                 String loginURL = "https://handshakr.duckdns.org/auth/login";
-                StringRequest loginRequest = new StringRequest(Request.Method.POST, loginURL,
-                        response -> Snackbar.make(view, response.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(30).show(),
-                        error -> Snackbar.make(view, "Volley Error: " + error, Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
-                    @Override
-                    public byte[] getBody() throws AuthFailureError {
-                        JSONObject jsonBody = new JSONObject();
-                        try {
-                            jsonBody.put("username", "user1");
-                            jsonBody.put("password", "password");
-                        } catch (JSONException e) {
-                            throw new RuntimeException(e);
-                        }
-                        final String requestBody = jsonBody.toString();
-                        return requestBody == null ? null : requestBody.getBytes(StandardCharsets.UTF_8);
-                    }
-                    @Override
-                    public String getBodyContentType() {
-                        return "application/json; charset=utf-8";
-                    }
-                };
-                // Add the request to the RequestQueue.
-                requestQueue.add(loginRequest);
+
+                JSONObject jsonBody = new JSONObject();
+                try {
+                    jsonBody.put("username", "user1");
+                    jsonBody.put("password", "password");
+
+                    AuthRequest authRequest = new AuthRequest(Request.Method.POST, loginURL,jsonBody,
+                            response -> {
+                                try {
+                                    //Snackbar.make(view, response.toString(4), Snackbar.LENGTH_INDEFINITE).setTextMaxLines(30).show();
+                                    //validateCSRF(response.getString("X-CSRF-TOKEN"), view, requestQueue);
+                                    if (response.getString("httpStatus").equals("200")){
+                                        Toast.makeText(view.getContext(),"Login Successful", Toast.LENGTH_SHORT ).show();
+                                    } else{
+                                        Toast.makeText(view.getContext(),"Login Failed", Toast.LENGTH_SHORT ).show();
+                                    }
+                                } catch (JSONException e) {
+                                    throw new RuntimeException(e);
+                                }
+                            },
+                            error -> Snackbar.make(view, "Volley Error: " + error, Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
+                    requestQueue.add(authRequest);
+                } catch (JSONException e) {
+                    throw new RuntimeException(e);
+                }
+
 
 
 
@@ -577,6 +536,28 @@ public class MainActivity extends AppCompatActivity {
         } else{
             Snackbar.make(view, "No internet connection", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
         }
+
+    }
+
+    public void validateCSRF(String token, View v, RequestQueue rq){
+
+        //CONFIRM LOGIN
+
+        String getURL = "https://handshakr.duckdns.org/users/me";
+        StringRequest getRequest = new StringRequest(Request.Method.GET, getURL,
+                response -> Snackbar.make(v, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
+                error -> Snackbar.make(v, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
+            @Override
+            public Map<String, String> getHeaders() {
+                Map<String, String>  params = new HashMap<String, String>();
+                params.put("X-CSRF-TOKEN", token);
+                return params;
+            }
+        };
+        // Add the request to the RequestQueue.
+       rq.add(getRequest);
+
+
 
     }
 
