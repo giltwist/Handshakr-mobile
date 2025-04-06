@@ -20,9 +20,14 @@ public class BTStateChangeReceiver extends BroadcastReceiver {
 
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent.getAction().equals(BluetoothAdapter.ACTION_STATE_CHANGED)){
-           button.setVisibility(adapter.isEnabled()? View.GONE:View.VISIBLE);
+        try {
 
+            if (intent.getAction().equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
+                button.setVisibility(adapter!=null&&adapter.isEnabled() ? View.GONE : View.VISIBLE);
+
+            }
+        }catch(Exception e){
+            //noop
         }
     }
 }

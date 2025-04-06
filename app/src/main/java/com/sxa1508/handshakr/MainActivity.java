@@ -443,7 +443,7 @@ public class MainActivity extends AppCompatActivity {
                     .plaintext(plaintext)
                     .toByteArrayAndResult().getBytes();
 
-            //Snackbar.make(view, new String(ciphertext), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+            Snackbar.make(view, new String(ciphertext), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
 
 
             ReadyWithResult<DecryptionResult> readyWithResult = sop.decrypt()
@@ -486,7 +486,6 @@ public class MainActivity extends AppCompatActivity {
             if (caps.hasCapability(NET_CAPABILITY_VALIDATED)) {
 
                 //BEGIN VOLLEY
-
                 // Instantiate the cache
                 Cache cache = new DiskBasedCache(getCacheDir(), 1024 * 1024); // 1MB cap
                 // Set up the network to use HttpURLConnection as the HTTP client.
@@ -498,20 +497,24 @@ public class MainActivity extends AppCompatActivity {
 
 
                 //BEGIN LOGIN
-                String loginURL = "https://handshakr.duckdns.org/auth/login";
-
-                JSONObject jsonBody = new JSONObject();
+                JSONObject loginInfo = new JSONObject();
                 try {
-                    jsonBody.put("username", "user1");
-                    jsonBody.put("password", "password");
+                    loginInfo.put("username", "aritest5");
+                    loginInfo.put("password", "Aritest5password!");
 
-                    AuthRequest authRequest = new AuthRequest(Request.Method.POST, loginURL,jsonBody,
+                    Toast.makeText(view.getContext(),"Attempting login as: " +loginInfo.getString("username"), Toast.LENGTH_SHORT ).show();
+
+                    AuthRequest authRequest = new AuthRequest(Request.Method.POST, loginInfo,
                             response -> {
                                 try {
-                                    //Snackbar.make(view, response.toString(4), Snackbar.LENGTH_INDEFINITE).setTextMaxLines(30).show();
-                                    //validateCSRF(response.getString("X-CSRF-TOKEN"), view, requestQueue);
-                                    if (response.getString("httpStatus").equals("200")){
-                                        Toast.makeText(view.getContext(),"Login Successful", Toast.LENGTH_SHORT ).show();
+
+
+                                    if (response.getJSONObject("body").getString("httpStatus").equals("200")){
+                                        String token = response.getJSONObject("header").getString("X-CSRF-TOKEN");
+                                        String body = response.getString("body");
+                                        Toast.makeText(view.getContext(),"Login Successful: "+token, Toast.LENGTH_LONG ).show();
+                                        //Snackbar.make(view, body, Snackbar.LENGTH_INDEFINITE).setTextMaxLines(30).show();
+                                        //validateCSRF(token, body, view, requestQueue);
                                     } else{
                                         Toast.makeText(view.getContext(),"Login Failed", Toast.LENGTH_SHORT ).show();
                                     }
@@ -539,19 +542,27 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void validateCSRF(String token, View v, RequestQueue rq){
+    public void validateCSRF(String token, String body, View v, RequestQueue rq){
 
         //CONFIRM LOGIN
 
         String getURL = "https://handshakr.duckdns.org/users/me";
         StringRequest getRequest = new StringRequest(Request.Method.GET, getURL,
-                response -> Snackbar.make(v, response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
-                error -> Snackbar.make(v, "Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
+                response -> Snackbar.make(v, "Validation Volley Success: " + response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
+                error -> Snackbar.make(v, "Validation Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
             @Override
             public Map<String, String> getHeaders() {
                 Map<String, String>  params = new HashMap<String, String>();
+                params.put("Content-Type", "application/json");
+                params.put("Origin", "app://com.handshakr");
                 params.put("X-CSRF-TOKEN", token);
+                params.put("Cookie", "XSRF-TOKEN="+token);
                 return params;
+            }
+
+            @Override
+            public byte[] getBody() {
+                return body.getBytes(StandardCharsets.UTF_8);
             }
         };
         // Add the request to the RequestQueue.

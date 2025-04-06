@@ -23,8 +23,8 @@ import java.util.Map;
 public class AuthRequest extends JsonObjectRequest {
 
 
-    public AuthRequest(int method, String url, @Nullable JSONObject jsonRequest, Response.Listener<JSONObject> listener, @Nullable Response.ErrorListener errorListener) {
-        super(method, url, jsonRequest, listener, errorListener);
+    public AuthRequest(int method, @Nullable JSONObject jsonRequest, Response.Listener<JSONObject> listener, @Nullable Response.ErrorListener errorListener) {
+        super(method, "https://handshakr.duckdns.org/auth/login", jsonRequest, listener, errorListener);
     }
 
     @Override
@@ -37,12 +37,9 @@ public class AuthRequest extends JsonObjectRequest {
                             HttpHeaderParser.parseCharset(response.headers, PROTOCOL_CHARSET));
             JSONObject responseBody=new JSONObject(responseText);
             JSONObject responseHeader=new JSONObject(response.headers);
-            JSONObject fullResponse = responseBody;
-
-            for (Iterator<String> it = responseHeader.keys(); it.hasNext(); ) {
-                String k = it.next();
-                fullResponse.put(k,responseHeader.get(k));
-            }
+            JSONObject fullResponse = new JSONObject();
+            fullResponse.put("header",responseHeader);
+            fullResponse.put("body",responseBody);
 
             return Response.success(fullResponse
                     , HttpHeaderParser.parseCacheHeaders(response));
@@ -55,6 +52,14 @@ public class AuthRequest extends JsonObjectRequest {
     @Override
     public String getBodyContentType() {
         return "application/json; charset=utf-8";
+    }
+
+    @Override
+    public Map<String, String> getHeaders() {
+        Map<String, String>  params = new HashMap<String, String>();
+        params.put("Content-Type", "application/json");
+        params.put("Origin", "app://com.handshakr");
+        return params;
     }
 
 }
