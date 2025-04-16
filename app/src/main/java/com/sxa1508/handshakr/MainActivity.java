@@ -22,6 +22,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
 import android.widget.ListPopupWindow;
+import android.widget.Switch;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -88,11 +89,14 @@ public class MainActivity extends AppCompatActivity {
     ReceiveRunner receiveRunner;
 
     EditText userName;
+    EditText welcome;
     EditText dealTitle;
     EditText dealDesc;
 
     Button permButton;
     Button enableButton;
+    Button sendButton;
+    Switch modeSwitch;
 
     String loginToken;
     String loginJWT;
@@ -108,10 +112,14 @@ public class MainActivity extends AppCompatActivity {
                 if (isGranted.containsValue(false)) {
                     Toast.makeText(getApplicationContext(), "At least one permission was denied", Toast.LENGTH_SHORT).show();
                     permButton.setVisibility(View.VISIBLE);
+
                 } else {
                     Toast.makeText(getApplicationContext(), "All perms granted", Toast.LENGTH_SHORT).show();
                     permButton.setVisibility(View.INVISIBLE);
                 }
+                modeSwitch.setVisibility(bluetoothAdapter!=null&&bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
+                sendButton.setVisibility(bluetoothAdapter!=null&&bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
+
             });
 
     private ActivityResultLauncher<Intent> requestBTenable = registerForActivityResult(
@@ -138,9 +146,12 @@ public class MainActivity extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         Bundle b = getIntent().getExtras();
-        this.loginToken=b.getString("token");
-        this.loginJWT=b.getString("jwt");
-        this.loginCookie=b.getString("cookie");
+        if (b != null) {
+            this.loginToken=b.getString("token");
+            this.loginJWT=b.getString("jwt");
+            this.loginCookie=b.getString("cookie");
+            this.userID=b.getString("user");
+        }
 
         //BEGIN VOLLEY
         // Instantiate the cache
@@ -152,6 +163,11 @@ public class MainActivity extends AppCompatActivity {
         // Start the queue
         requestQueue.start();
 
+
+
+        //Test creation of handshake
+        //submitHandshake(loginToken, loginJWT, loginCookie, "user3", "TestHandshake"+UUID.randomUUID().toString().substring(0,5), "DEJGHESGJKJNVDKJNSDGFHJUIURJGNNDKLDL", findViewById(R.id.main), requestQueue);
+
         //validateCSRF(loginToken,loginJWT,loginCookie,findViewById(R.id.main),requestQueue);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
@@ -161,16 +177,27 @@ public class MainActivity extends AppCompatActivity {
         });
 
         //BEGIN INIT
+        welcome = (EditText) findViewById(R.id.userwelcome);
         dealTitle = (EditText) findViewById(R.id.dealTitle);
         dealDesc = (EditText) findViewById(R.id.dealDetail);
         permButton = (Button) findViewById(R.id.permButton);
         enableButton = (Button) findViewById(R.id.enableButton);
+        sendButton = (Button) findViewById(R.id.send);
+        modeSwitch = (Switch) findViewById(R.id.mode);
+
+        welcome.setText("Welcome "+userID);
 
         permButton.setVisibility(hasBTPerms() ? View.GONE : View.VISIBLE);
         enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.GONE : View.VISIBLE);
 
-        BTStateChangeReceiver btSCR = new BTStateChangeReceiver(enableButton, bluetoothAdapter);
-        IntentFilter filter = new IntentFilter("android.bluetooth.adapter.action.STATE_CHANGED");
+        modeSwitch.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
+
+
+        BTStateChangeReceiver btSCR = new BTStateChangeReceiver(enableButton, sendButton, modeSwitch, bluetoothAdapter);
+        IntentFilter filter = new IntentFilter();
+        filter.addAction(BluetoothAdapter.ACTION_STATE_CHANGED);
+        filter.addAction(BluetoothAdapter.ACTION_DISCOVERY_FINISHED);
+        filter.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
         registerReceiver(btSCR, filter);
 
         executor = Executors.newSingleThreadExecutor();
@@ -204,14 +231,15 @@ public class MainActivity extends AppCompatActivity {
         } else {
             // You can directly ask for the permission.
             // The registered ActivityResultCallback gets the result of this request.
-            requestPermissionLauncher.launch(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN});
+            requestPermissionLauncher.launch(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.ACCESS_COARSE_LOCATION});
         }
     }
 
     private boolean hasBTPerms() {
         boolean result;
         result = (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)
-                && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED);
+                && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED)
+                && (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED);
         if (result) {
             bluetoothManager = getSystemService(BluetoothManager.class);
             bluetoothAdapter = bluetoothManager.getAdapter();
@@ -231,6 +259,8 @@ public class MainActivity extends AppCompatActivity {
                     requestBTenable.launch(enableBtIntent);
                 } else {
                     Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already enabled", Toast.LENGTH_SHORT);
+                    enableButton.setVisibility(View.GONE);
+                    modeSwitch.setVisibility(View.VISIBLE);
                     hasBTtoast.show();
                 }
             }
@@ -254,6 +284,7 @@ public class MainActivity extends AppCompatActivity {
                         bluetoothAdapter.cancelDiscovery();
                     }
                     Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
+                    enableDiscoverable.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 10);
                     requestBTenable.launch(enableDiscoverable);
                     acceptRunner = new AcceptRunner(this);
                     ListenableFuture<BluetoothSocket> futureSockReady = listeningExecutor.submit(acceptRunner);
@@ -499,7 +530,16 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    public void doToggle(View view){
 
+
+        if (modeSwitch.isChecked()){
+            sendButton.setVisibility(View.INVISIBLE);
+            beDiscoverable(view);
+        } else{
+            sendButton.setVisibility(View.VISIBLE);
+        }
+    }
 
     public void validateCSRF(String token, String jwt, String cookie, View v, RequestQueue rq) {
 

@@ -8,7 +8,9 @@ import android.net.LinkProperties;
 import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
@@ -46,6 +48,8 @@ public class LoginActivity extends AppCompatActivity {
 
         EditText user = (EditText) findViewById(R.id.user);
         EditText password = (EditText) findViewById(R.id.password);
+        Button login = (Button) findViewById(R.id.loginButton);
+        ImageView wait = (ImageView) findViewById(R.id.wait);
 
 
         if (user.getText().isEmpty() || password.getText().isEmpty()) {
@@ -63,6 +67,10 @@ public class LoginActivity extends AppCompatActivity {
             assert caps != null;
             if (caps.hasCapability(NET_CAPABILITY_VALIDATED)) {
 
+                login.setEnabled(false);
+                login.setAlpha(.5f);
+                login.setClickable(false);
+                wait.setVisibility(View.VISIBLE);
                 //BEGIN VOLLEY
                 // Instantiate the cache
                 Cache cache = new DiskBasedCache(getCacheDir(), 1024 * 1024); // 1MB cap
@@ -97,23 +105,29 @@ public class LoginActivity extends AppCompatActivity {
 
                                             Intent myIntent = new Intent(this, MainActivity.class);
                                             Bundle b = new Bundle();
+                                            b.putString("user", String.valueOf(user.getText()));
                                             b.putString("token", xsrfToken);
                                             b.putString("jwt",jwt);
                                             b.putString("cookie",xsrfCookie);
                                             myIntent.putExtras(b);
                                             startActivity(myIntent);
 
-                                            //Test creation of handshake
-                                            //submitHandshake(xsrfToken, jwt, xsrfCookie, "test06", "TestHandshake"+UUID.randomUUID().toString().substring(0,5), "DEJGHESGJKJNVDKJNSDGFHJUIURJGNNDKLDL", view, requestQueue);
 
                                         } else {
-                                            Toast.makeText(view.getContext(), "Login Failed", Toast.LENGTH_SHORT).show();
+                                            Toast.makeText(view.getContext(), "Login Failed" +response.toString(4), Toast.LENGTH_LONG).show();
                                         }
                                     } catch (JSONException e) {
                                         throw new RuntimeException(e);
                                     }
                                 },
-                                error -> Toast.makeText(view.getContext(), "Login Failed", Toast.LENGTH_SHORT).show());
+                                error -> {
+                                    Toast.makeText(view.getContext(), "Login Failed", Toast.LENGTH_SHORT).show();
+                                    wait.setVisibility(View.INVISIBLE);
+                                    login.setEnabled(true);
+                                    login.setAlpha(1.0f);
+                                    login.setClickable(true);
+
+                                });
                         requestQueue.add(authRequest);
                     } catch (JSONException e) {
                         throw new RuntimeException(e);
