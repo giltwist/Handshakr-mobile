@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.BluetoothSocket;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
@@ -26,6 +27,7 @@ import android.widget.Toast;
 import androidx.activity.EdgeToEdge;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
@@ -33,14 +35,12 @@ import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
-import com.android.volley.AuthFailureError;
 import com.android.volley.Cache;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.DiskBasedCache;
 import com.android.volley.toolbox.HurlStack;
-import com.android.volley.toolbox.StringRequest;
 import com.google.android.material.snackbar.Snackbar;
 import com.google.common.util.concurrent.FutureCallback;
 import com.google.common.util.concurrent.Futures;
@@ -94,6 +94,13 @@ public class MainActivity extends AppCompatActivity {
     Button permButton;
     Button enableButton;
 
+    String loginToken;
+    String loginJWT;
+    String loginCookie;
+    String userID;
+    byte[] privateKey;
+    byte[] publicKey;
+
 
     //BEGIN ACTIVITY LAUNCHERS
     private ActivityResultLauncher<String[]> requestPermissionLauncher =
@@ -124,13 +131,28 @@ public class MainActivity extends AppCompatActivity {
             });
 
 
-
-
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         EdgeToEdge.enable(this);
         setContentView(R.layout.activity_main);
+
+        Bundle b = getIntent().getExtras();
+        this.loginToken=b.getString("token");
+        this.loginJWT=b.getString("jwt");
+        this.loginCookie=b.getString("cookie");
+
+        //BEGIN VOLLEY
+        // Instantiate the cache
+        Cache cache = new DiskBasedCache(getCacheDir(), 1024 * 1024); // 1MB cap
+        // Set up the network to use HttpURLConnection as the HTTP client.
+        com.android.volley.Network network = new BasicNetwork(new HurlStack());
+        // Instantiate the RequestQueue with the cache and network.
+        RequestQueue requestQueue = new RequestQueue(cache, network);
+        // Start the queue
+        requestQueue.start();
+
+        //validateCSRF(loginToken,loginJWT,loginCookie,findViewById(R.id.main),requestQueue);
 
         ViewCompat.setOnApplyWindowInsetsListener(findViewById(R.id.main), (v, insets) -> {
             Insets systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
@@ -139,38 +161,35 @@ public class MainActivity extends AppCompatActivity {
         });
 
         //BEGIN INIT
-        userName = (EditText) findViewById(R.id.userName);
         dealTitle = (EditText) findViewById(R.id.dealTitle);
         dealDesc = (EditText) findViewById(R.id.dealDetail);
         permButton = (Button) findViewById(R.id.permButton);
         enableButton = (Button) findViewById(R.id.enableButton);
 
-        permButton.setVisibility(hasBTPerms()?View.GONE:View.VISIBLE);
-        enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled()?View.GONE:View.VISIBLE);
+        permButton.setVisibility(hasBTPerms() ? View.GONE : View.VISIBLE);
+        enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.GONE : View.VISIBLE);
 
-        BTStateChangeReceiver btSCR = new BTStateChangeReceiver(enableButton,bluetoothAdapter);
+        BTStateChangeReceiver btSCR = new BTStateChangeReceiver(enableButton, bluetoothAdapter);
         IntentFilter filter = new IntentFilter("android.bluetooth.adapter.action.STATE_CHANGED");
         registerReceiver(btSCR, filter);
 
         executor = Executors.newSingleThreadExecutor();
         listeningExecutor = MoreExecutors.listeningDecorator(executor);
+
         btList = new HashMap<>();
-        btr = new BTNearbyReceiver(this);
+
         BTnearadapter = new ArrayAdapter<>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
         BTnearlist = new ListPopupWindow(this);
         BTnearlist.setAdapter(BTnearadapter);
         BTnearlist.setModal(true);
         BTnearlist.setOnItemClickListener((parent, view, position, id) -> {
-
-            //Toast choseToast = Toast.makeText(getApplicationContext(), "You chose " + ((BluetoothDevice) btList.keySet().toArray()[position]).getName(), Toast.LENGTH_SHORT);
-            //choseToast.show();
-
             doPair(((BluetoothDevice) btList.keySet().toArray()[position]));
-
             BTnearlist.dismiss();
         });
 
+        btr = new BTNearbyReceiver(this);
         registerReceiver(btr, new IntentFilter(BluetoothDevice.ACTION_FOUND));
+
 
 
     }
@@ -348,7 +367,7 @@ public class MainActivity extends AppCompatActivity {
 
         JSONObject testData = new JSONObject();
         try {
-            testData.put("user", userName.getText().toString());
+            testData.put("user", userID);
             testData.put("title", dealTitle.getText().toString());
             testData.put("detail", dealDesc.getText().toString());
             testData.put("signature", UUID.randomUUID().toString());
@@ -356,7 +375,7 @@ public class MainActivity extends AppCompatActivity {
             sendRunner = new SendRunner(s);
             sendRunner.setMmBuffer(testDataAsBytes);
             executor.execute(sendRunner);
-            s.close();
+            //s.close();
 
         } catch (Exception e) {
 
@@ -381,20 +400,30 @@ public class MainActivity extends AppCompatActivity {
         Futures.addCallback(futureJSON, new FutureCallback<>() {
             @Override
             public void onSuccess(JSONObject j) {
-                StringBuilder sb = new StringBuilder();
 
-                j.keys().forEachRemaining(keyStr ->
-                {
-                    try {
-                        sb.append(keyStr).append(": ").append(j.get(keyStr)).append("\n");
-                    } catch (JSONException e) {
-                        sb.append("ERROR IN JSON DECODING LOOP");
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() {
+                        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                        builder.setTitle("Do you agree to this deal?")
+                                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dialog, int id) {
+                                    }
+                                })
+                                .setNegativeButton("No", new DialogInterface.OnClickListener() {
+                                    public void onClick(DialogInterface dialog, int id) {
+                                    }
+                                });
+                        try {
+                            builder.setMessage(j.toString(4));
+                        } catch (JSONException e) {
+                            throw new RuntimeException(e);
+                        }
+                        builder.create();
+                        builder.show();
                     }
                 });
 
-                Snackbar snackbar = Snackbar.make(findViewById(R.id.main), sb.toString(), Snackbar.LENGTH_LONG);
-                snackbar.setTextMaxLines(10);
-                snackbar.show();
             }
 
             @Override
@@ -439,12 +468,10 @@ public class MainActivity extends AppCompatActivity {
                     .withCert(alicePublicKey)
                     .withCert(bobPublicKey)
                     .signWith(alicePrivateKey)
-                    .signWith(bobPrivateKey)
                     .plaintext(plaintext)
                     .toByteArrayAndResult().getBytes();
 
             Snackbar.make(view, new String(ciphertext), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
-
 
             ReadyWithResult<DecryptionResult> readyWithResult = sop.decrypt()
                     .withKey(alicePrivateKey)
@@ -472,106 +499,39 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void testVolley(View view) {
-        //BEGIN NET CHECK
-
-        ConnectivityManager connectivityManager = getSystemService(ConnectivityManager.class);
-        android.net.Network currentNetwork = connectivityManager.getActiveNetwork();
-
-        if (currentNetwork != null) {
-            NetworkCapabilities caps = connectivityManager.getNetworkCapabilities(currentNetwork);
-            LinkProperties linkProperties = connectivityManager.getLinkProperties(currentNetwork);
-
-            assert caps != null;
-            if (caps.hasCapability(NET_CAPABILITY_VALIDATED)) {
-
-                //BEGIN VOLLEY
-                // Instantiate the cache
-                Cache cache = new DiskBasedCache(getCacheDir(), 1024 * 1024); // 1MB cap
-                // Set up the network to use HttpURLConnection as the HTTP client.
-                com.android.volley.Network network = new BasicNetwork(new HurlStack());
-                // Instantiate the RequestQueue with the cache and network.
-                RequestQueue requestQueue = new RequestQueue(cache, network);
-                // Start the queue
-                requestQueue.start();
 
 
-                //BEGIN LOGIN
-                JSONObject loginInfo = new JSONObject();
-                try {
-                    loginInfo.put("username", "aritest5");
-                    loginInfo.put("password", "Aritest5password!");
-
-                    Toast.makeText(view.getContext(),"Attempting login as: " +loginInfo.getString("username"), Toast.LENGTH_SHORT ).show();
-
-                    AuthRequest authRequest = new AuthRequest(Request.Method.POST, loginInfo,
-                            response -> {
-                                try {
-
-
-                                    if (response.getJSONObject("body").getString("httpStatus").equals("200")){
-                                        String token = response.getJSONObject("header").getString("X-CSRF-TOKEN");
-                                        String body = response.getString("body");
-                                        Toast.makeText(view.getContext(),"Login Successful: "+token, Toast.LENGTH_LONG ).show();
-                                        //Snackbar.make(view, body, Snackbar.LENGTH_INDEFINITE).setTextMaxLines(30).show();
-                                        //validateCSRF(token, body, view, requestQueue);
-                                    } else{
-                                        Toast.makeText(view.getContext(),"Login Failed", Toast.LENGTH_SHORT ).show();
-                                    }
-                                } catch (JSONException e) {
-                                    throw new RuntimeException(e);
-                                }
-                            },
-                            error -> Snackbar.make(view, "Volley Error: " + error, Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
-                    requestQueue.add(authRequest);
-                } catch (JSONException e) {
-                    throw new RuntimeException(e);
-                }
-
-
-
-
-            } else {
-                Snackbar.make(view, "No internet access", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-            }
-
-
-        } else{
-            Snackbar.make(view, "No internet connection", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-        }
-
-    }
-
-    public void validateCSRF(String token, String body, View v, RequestQueue rq){
+    public void validateCSRF(String token, String jwt, String cookie, View v, RequestQueue rq) {
 
         //CONFIRM LOGIN
 
-        String getURL = "https://handshakr.duckdns.org/users/me";
-        StringRequest getRequest = new StringRequest(Request.Method.GET, getURL,
-                response -> Snackbar.make(v, "Validation Volley Success: " + response, Snackbar.LENGTH_LONG).setTextMaxLines(10).show(),
-                error -> Snackbar.make(v, "Validation Volley Error: " + error.toString(), Snackbar.LENGTH_LONG).setTextMaxLines(10).show()){
-            @Override
-            public Map<String, String> getHeaders() {
-                Map<String, String>  params = new HashMap<String, String>();
-                params.put("Content-Type", "application/json");
-                params.put("Origin", "app://com.handshakr");
-                params.put("X-CSRF-TOKEN", token);
-                params.put("Cookie", "XSRF-TOKEN="+token);
-                return params;
-            }
-
-            @Override
-            public byte[] getBody() {
-                return body.getBytes(StandardCharsets.UTF_8);
-            }
-        };
+        ValidateAuthRequest getRequest = new ValidateAuthRequest(token, jwt, cookie,
+                response -> Snackbar.make(v, "Validation Volley Success", Snackbar.LENGTH_SHORT).setTextMaxLines(10).show(),
+                error -> Snackbar.make(v, "Validation Volley Error", Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
         // Add the request to the RequestQueue.
-       rq.add(getRequest);
-
+        rq.add(getRequest);
 
 
     }
 
+    public void submitHandshake(String token, String jwt, String cookie, String receiver, String title, String encrypted, View v, RequestQueue rq) {
 
+        JSONObject handshakeInfo = new JSONObject();
+        try {
+            handshakeInfo.put("encryptedDetails", encrypted);
+            handshakeInfo.put("handshakeName", title);
+            handshakeInfo.put("receiverUsername", receiver);
+
+            CreateHandshakeRequest getRequest = new CreateHandshakeRequest(token, jwt, cookie, handshakeInfo,
+                    response -> Snackbar.make(v, "Create Handshake Success", Snackbar.LENGTH_SHORT).setTextMaxLines(10).show(),
+                    error -> Snackbar.make(v, "Create Handshake Error", Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
+            // Add the request to the RequestQueue.
+            rq.add(getRequest);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
+        }
+
+
+    }
 
 }

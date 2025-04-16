@@ -5,7 +5,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.view.View;
-import android.widget.Toast;
 import android.widget.Button;
 
 public class BTStateChangeReceiver extends BroadcastReceiver {
@@ -23,7 +22,7 @@ public class BTStateChangeReceiver extends BroadcastReceiver {
         try {
 
             if (intent.getAction().equals(BluetoothAdapter.ACTION_STATE_CHANGED)) {
-                button.setVisibility(adapter!=null&&adapter.isEnabled() ? View.GONE : View.VISIBLE);
+                button.setVisibility(adapter!=null&&adapter.isEnabled() ? View.INVISIBLE : View.VISIBLE);
 
             }
         }catch(Exception e){

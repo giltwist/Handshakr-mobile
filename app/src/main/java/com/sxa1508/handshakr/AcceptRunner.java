@@ -7,7 +7,6 @@ import android.annotation.SuppressLint;
 import android.bluetooth.BluetoothServerSocket;
 import android.bluetooth.BluetoothSocket;
 import android.util.Log;
-import android.widget.Toast;
 
 import java.io.IOException;
 import java.util.concurrent.Callable;

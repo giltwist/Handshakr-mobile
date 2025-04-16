@@ -4,7 +4,6 @@ package com.sxa1508.handshakr;
 // https://developer.android.com/develop/connectivity/bluetooth/transfer-data
 
 import android.bluetooth.BluetoothSocket;
-import android.os.Message;
 import android.util.Log;
 
 import org.json.JSONException;
@@ -66,7 +65,7 @@ public class ReceiveRunner implements Callable<JSONObject>{
             } catch (IOException e) {
                 done = true;
                 try {
-                    jsonObject.put("Connection","Failed");
+                    jsonObject.put("Receive Connection","Failed" + e.toString());
                 } catch (JSONException ex) {
                    // throw new RuntimeException(ex);
                 }

@@ -33,53 +33,10 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/permButton" />
 
-    <Button
-        android:id="@+id/button3"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:backgroundTint="@color/DarkBlue"
-        android:onClick="beDiscoverable"
-        android:text="Allow Offers"
-        android:textColor="@color/white"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/dealDetail" />
-
-    <Button
-        android:id="@+id/button4"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:backgroundTint="@color/DarkBlue"
-        android:onClick="doDiscover"
-        android:text="Make Offer"
-        android:textColor="@color/white"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/dealDetail" />
-
-    <EditText
-        android:id="@+id/userName"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="392dp"
-        android:background="@android:drawable/editbox_background"
-        android:ems="10"
-        android:hint="Username"
-        android:inputType="text"
-        android:lines="1"
-        android:maxLines="1"
-        android:minHeight="48dp"
-        android:textColor="@color/black"
-        android:textColorHint="@color/DarkBlue"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.203"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/enableButton"
-        tools:text="@tools:sample/first_names" />
-
     <EditText
         android:id="@+id/dealDetail"
-        android:layout_width="331dp"
-        android:layout_height="149dp"
+        android:layout_width="333dp"
+        android:layout_height="227dp"
         android:background="@android:drawable/editbox_dropdown_light_frame"
         android:ems="10"
         android:gravity="start|top"
@@ -90,16 +47,44 @@
         android:textColorHint="@color/DarkBlue"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.506"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@+id/dealTitle"
-        app:layout_constraintVertical_bias="0.2"
+        app:layout_constraintVertical_bias="0.127"
         tools:text="@tools:sample/lorem/random" />
+
+    <Button
+        android:id="@+id/button3"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="8dp"
+        android:backgroundTint="@color/DarkBlue"
+        android:onClick="beDiscoverable"
+        android:text="Allow Offers"
+        android:textColor="@color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/dealDetail"
+        app:layout_constraintVertical_bias="0.583" />
+
+    <Button
+        android:id="@+id/button4"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="16dp"
+        android:backgroundTint="@color/DarkBlue"
+        android:onClick="doDiscover"
+        android:text="Make Offer"
+        android:textColor="@color/white"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/dealDetail"
+        app:layout_constraintVertical_bias="0.586" />
 
     <EditText
         android:id="@+id/dealTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:layout_marginBottom="404dp"
         android:background="@android:drawable/editbox_background"
         android:ems="10"
         android:hint="Deal Title"
@@ -109,23 +94,11 @@
         android:minHeight="48dp"
         android:textColor="@color/black"
         android:textColorHint="@color/DarkBlue"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintHorizontal_bias="0.203"
+        app:layout_constraintHorizontal_bias="0.199"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/userName"
         tools:text="@tools:sample/lorem" />
-
-    <Button
-        android:id="@+id/button6"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginEnd="28dp"
-        android:backgroundTint="@color/DarkBlue"
-        android:onClick="testVolley"
-        android:text="Volley Test"
-        android:textColor="@color/white"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/imageView" />
 
     <Button
         android:id="@+id/button5"
