@@ -1,7 +1,5 @@
 package com.sxa1508.handshakr;
 
-import static android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED;
-
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.app.Activity;
@@ -13,9 +11,6 @@ import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageManager;
-import android.net.ConnectivityManager;
-import android.net.LinkProperties;
-import android.net.NetworkCapabilities;
 import android.os.Bundle;
 import android.view.View;
 import android.widget.ArrayAdapter;
@@ -37,7 +32,6 @@ import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 
 import com.android.volley.Cache;
-import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.DiskBasedCache;
@@ -52,6 +46,12 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.pgpainless.sop.SOPImpl;
+import org.pgpainless.sop.*;
+import org.pgpainless.sop.InlineSignImpl;
+import sop.operation.InlineSign;
+
+import sop.enums.InlineSignAs;
+
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -63,7 +63,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import sop.ByteArrayAndResult;
+import sop.*;
 import sop.DecryptionResult;
 import sop.ReadyWithResult;
 import sop.SOP;
@@ -72,6 +72,10 @@ import sop.exception.SOPGPException;
 public class MainActivity extends AppCompatActivity {
 
     public final UUID MY_UUID = UUID.fromString("40bbb78d-4257-4aff-9607-70ba22b747d2");
+    final static int SENDERKEY = 0;
+    final static int RECEIVERKEY = 1;
+    final static int OFFER = 2;
+    final static int RESPONSE = 3;
 
     ListPopupWindow BTnearlist;
     public Map<BluetoothDevice, String> btList;
@@ -80,6 +84,7 @@ public class MainActivity extends AppCompatActivity {
     BluetoothManager bluetoothManager;
     BluetoothAdapter bluetoothAdapter;
 
+    RequestQueue requestQueue;
 
     ExecutorService executor;
     ListeningExecutorService listeningExecutor;
@@ -88,7 +93,6 @@ public class MainActivity extends AppCompatActivity {
     SendRunner sendRunner;
     ReceiveRunner receiveRunner;
 
-    EditText userName;
     EditText welcome;
     EditText dealTitle;
     EditText dealDesc;
@@ -105,24 +109,30 @@ public class MainActivity extends AppCompatActivity {
     byte[] privateKey;
     byte[] publicKey;
 
+    byte[] otherPublicKey;
+    String otherUserID;
 
     //BEGIN ACTIVITY LAUNCHERS
-    private ActivityResultLauncher<String[]> requestPermissionLauncher =
+    private final ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), isGranted -> {
                 if (isGranted.containsValue(false)) {
                     Toast.makeText(getApplicationContext(), "At least one permission was denied", Toast.LENGTH_SHORT).show();
                     permButton.setVisibility(View.VISIBLE);
+                    modeSwitch.setVisibility(View.INVISIBLE);
+                    sendButton.setVisibility(View.INVISIBLE);
 
                 } else {
                     Toast.makeText(getApplicationContext(), "All perms granted", Toast.LENGTH_SHORT).show();
                     permButton.setVisibility(View.INVISIBLE);
+                    enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.GONE : View.VISIBLE);
+                    modeSwitch.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
+
                 }
-                modeSwitch.setVisibility(bluetoothAdapter!=null&&bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
-                sendButton.setVisibility(bluetoothAdapter!=null&&bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
+
 
             });
 
-    private ActivityResultLauncher<Intent> requestBTenable = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> requestBTenable = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
@@ -130,7 +140,7 @@ public class MainActivity extends AppCompatActivity {
                 }
             });
 
-    private ActivityResultLauncher<Intent> startDiscoverable = registerForActivityResult(
+    private final ActivityResultLauncher<Intent> startDiscoverable = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
@@ -147,10 +157,11 @@ public class MainActivity extends AppCompatActivity {
 
         Bundle b = getIntent().getExtras();
         if (b != null) {
-            this.loginToken=b.getString("token");
-            this.loginJWT=b.getString("jwt");
-            this.loginCookie=b.getString("cookie");
-            this.userID=b.getString("user");
+            this.loginToken = b.getString("token");
+            this.loginJWT = b.getString("jwt");
+            this.loginCookie = b.getString("cookie");
+            this.userID = b.getString("user");
+            generateKeys();
         }
 
         //BEGIN VOLLEY
@@ -159,10 +170,9 @@ public class MainActivity extends AppCompatActivity {
         // Set up the network to use HttpURLConnection as the HTTP client.
         com.android.volley.Network network = new BasicNetwork(new HurlStack());
         // Instantiate the RequestQueue with the cache and network.
-        RequestQueue requestQueue = new RequestQueue(cache, network);
+        requestQueue = new RequestQueue(cache, network);
         // Start the queue
         requestQueue.start();
-
 
 
         //Test creation of handshake
@@ -177,21 +187,19 @@ public class MainActivity extends AppCompatActivity {
         });
 
         //BEGIN INIT
-        welcome = (EditText) findViewById(R.id.userwelcome);
-        dealTitle = (EditText) findViewById(R.id.dealTitle);
-        dealDesc = (EditText) findViewById(R.id.dealDetail);
-        permButton = (Button) findViewById(R.id.permButton);
-        enableButton = (Button) findViewById(R.id.enableButton);
-        sendButton = (Button) findViewById(R.id.send);
-        modeSwitch = (Switch) findViewById(R.id.mode);
+        welcome = findViewById(R.id.userwelcome);
+        dealTitle = findViewById(R.id.dealTitle);
+        dealDesc = findViewById(R.id.dealDetail);
+        permButton = findViewById(R.id.permButton);
+        enableButton = findViewById(R.id.enableButton);
+        sendButton = findViewById(R.id.send);
+        modeSwitch = findViewById(R.id.mode);
 
-        welcome.setText("Welcome "+userID);
+        welcome.setText("Welcome " + userID);
 
         permButton.setVisibility(hasBTPerms() ? View.GONE : View.VISIBLE);
         enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.GONE : View.VISIBLE);
-
         modeSwitch.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
-
 
         BTStateChangeReceiver btSCR = new BTStateChangeReceiver(enableButton, sendButton, modeSwitch, bluetoothAdapter);
         IntentFilter filter = new IntentFilter();
@@ -200,8 +208,10 @@ public class MainActivity extends AppCompatActivity {
         filter.addAction(BluetoothAdapter.ACTION_SCAN_MODE_CHANGED);
         registerReceiver(btSCR, filter);
 
+        //THREADING SETUP
         executor = Executors.newSingleThreadExecutor();
         listeningExecutor = MoreExecutors.listeningDecorator(executor);
+
 
         btList = new HashMap<>();
 
@@ -217,8 +227,6 @@ public class MainActivity extends AppCompatActivity {
         btr = new BTNearbyReceiver(this);
         registerReceiver(btr, new IntentFilter(BluetoothDevice.ACTION_FOUND));
 
-
-
     }
 
     public void getBTperms(View view) {
@@ -231,15 +239,14 @@ public class MainActivity extends AppCompatActivity {
         } else {
             // You can directly ask for the permission.
             // The registered ActivityResultCallback gets the result of this request.
-            requestPermissionLauncher.launch(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN, Manifest.permission.ACCESS_COARSE_LOCATION});
+            requestPermissionLauncher.launch(new String[]{Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_SCAN});
         }
     }
 
     private boolean hasBTPerms() {
         boolean result;
         result = (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)
-                && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED)
-                && (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED);
+                && (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_SCAN) == PackageManager.PERMISSION_GRANTED);
         if (result) {
             bluetoothManager = getSystemService(BluetoothManager.class);
             bluetoothAdapter = bluetoothManager.getAdapter();
@@ -258,10 +265,10 @@ public class MainActivity extends AppCompatActivity {
                     Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
                     requestBTenable.launch(enableBtIntent);
                 } else {
-                    Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already enabled", Toast.LENGTH_SHORT);
+                    //Toast hasBTtoast = Toast.makeText(getApplicationContext(), "BT already enabled", Toast.LENGTH_SHORT);
                     enableButton.setVisibility(View.GONE);
                     modeSwitch.setVisibility(View.VISIBLE);
-                    hasBTtoast.show();
+
                 }
             }
         } else {
@@ -284,8 +291,10 @@ public class MainActivity extends AppCompatActivity {
                         bluetoothAdapter.cancelDiscovery();
                     }
                     Intent enableDiscoverable = new Intent(BluetoothAdapter.ACTION_REQUEST_DISCOVERABLE);
-                    enableDiscoverable.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 10);
+                    enableDiscoverable.putExtra(BluetoothAdapter.EXTRA_DISCOVERABLE_DURATION, 60);
                     requestBTenable.launch(enableDiscoverable);
+
+                    //BEGIN BLUETOOTH SETUP
                     acceptRunner = new AcceptRunner(this);
                     ListenableFuture<BluetoothSocket> futureSockReady = listeningExecutor.submit(acceptRunner);
                     Futures.addCallback(futureSockReady, new FutureCallback<>() {
@@ -299,7 +308,6 @@ public class MainActivity extends AppCompatActivity {
                             //noop
                         }
                     }, executor);
-
 
                 } else {
                     Toast hasntBTtoast = Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT);
@@ -315,7 +323,7 @@ public class MainActivity extends AppCompatActivity {
     //Has a permission check but linter doesn't see it
     public void doDiscover(View view) {
 
-        if (userName.getText().isEmpty() || dealTitle.getText().isEmpty() || dealDesc.getText().isEmpty()) {
+        if (MainActivity.this.dealTitle.getText().isEmpty() || MainActivity.this.dealDesc.getText().isEmpty()) {
             Toast.makeText(getApplicationContext(), "Fill out the deal form first", Toast.LENGTH_SHORT).show();
         } else {
 
@@ -323,15 +331,15 @@ public class MainActivity extends AppCompatActivity {
             if (hasBTPerms()) {
 
 
-                if (bluetoothAdapter == null) {
+                if (MainActivity.this.bluetoothAdapter == null) {
                     Toast.makeText(getApplicationContext(), "No BT functionality detected", Toast.LENGTH_SHORT).show();
 
                 } else {
-                    if (bluetoothAdapter.isEnabled()) {
-                        bluetoothAdapter.startDiscovery();
+                    if (MainActivity.this.bluetoothAdapter.isEnabled()) {
+                        MainActivity.this.bluetoothAdapter.startDiscovery();
 
-                        BTnearlist.setAnchorView(view);
-                        BTnearlist.show();
+                        MainActivity.this.BTnearlist.setAnchorView(view);
+                        MainActivity.this.BTnearlist.show();
 
                     } else {
                         Toast.makeText(getApplicationContext(), "Need to enable BT", Toast.LENGTH_SHORT).show();
@@ -357,15 +365,23 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("MissingPermission")
     //Only call with permissions!
     public void doPair(BluetoothDevice b) {
-        Toast pairedToast = Toast.makeText(this, "Pairing with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
-        pairedToast.show();
+        Toast.makeText(this, "Pairing with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT).show();
         bluetoothAdapter.cancelDiscovery();
         connectRunner = new ConnectRunner(MY_UUID, b);
         Future<BluetoothSocket> futureSockPair = executor.submit(connectRunner);
         //ListenableFuture<BluetoothSocket> futureSockPair = listeningExecutor.submit(connectRunner);
         try {
-            SendData(futureSockPair.get());
-        } catch (ExecutionException | InterruptedException e) {
+            //Toast.makeText(this, "Paired with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT).show();
+            String key = new String(this.publicKey, StandardCharsets.UTF_8);
+            //key=key.replace('\n','&');
+            //key=key.replace('/','^');
+            //key=key.substring(PGPHead.length(),key.length()-PGPFoot.length()-2);
+            JSONObject payload = new JSONObject();
+            payload.put("key", key);
+            payload.put("user", MainActivity.this.userID);
+            SendData(futureSockPair.get(), SENDERKEY, payload);
+            ReceiveData(futureSockPair.get());
+        } catch (ExecutionException | InterruptedException | JSONException e) {
             throw new RuntimeException(e);
         }
 
@@ -390,21 +406,20 @@ public class MainActivity extends AppCompatActivity {
 
     @SuppressLint("MissingPermission")
     //Only call with permissions!
-    public void SendData(BluetoothSocket s) {
-        //this = mainactivity
+    public void SendData(BluetoothSocket s, int type, JSONObject payload) {
         BluetoothDevice b = s.getRemoteDevice();
-        Toast sendToast = Toast.makeText(this, "Sending test data to " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
-        sendToast.show();
+        //Toast sendToast = Toast.makeText(this, "Sending data to " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
+        //sendToast.show();
 
-        JSONObject testData = new JSONObject();
         try {
-            testData.put("user", userID);
-            testData.put("title", dealTitle.getText().toString());
-            testData.put("detail", dealDesc.getText().toString());
-            testData.put("signature", UUID.randomUUID().toString());
-            byte[] testDataAsBytes = testData.toString().getBytes(StandardCharsets.UTF_8);
+
+            payload.put("SendType", type);
+            //System.out.println("Payload \n"+payload.toString(4));
+            //String payloadG = new Gson().toJson(payload);
+            byte[] payloadAsBytes = payload.toString().getBytes(StandardCharsets.UTF_8);
+
             sendRunner = new SendRunner(s);
-            sendRunner.setMmBuffer(testDataAsBytes);
+            sendRunner.setMmBuffer(payloadAsBytes);
             executor.execute(sendRunner);
             //s.close();
 
@@ -419,11 +434,6 @@ public class MainActivity extends AppCompatActivity {
     @SuppressLint("MissingPermission")
     //Only call with permissions!
     public void ReceiveData(BluetoothSocket s) {
-        //this = mainactivity
-
-        //BluetoothDevice b = s.getRemoteDevice();
-        //Toast receiveToast = Toast.makeText(getApplicationContext(), "Awaiting data from" + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT);
-        //receiveToast.show();
 
         receiveRunner = new ReceiveRunner(s);
         ListenableFuture<JSONObject> futureJSON = listeningExecutor.submit(receiveRunner);
@@ -432,28 +442,101 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onSuccess(JSONObject j) {
 
-                runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
-                        builder.setTitle("Do you agree to this deal?")
-                                .setPositiveButton("Yes", new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int id) {
+
+                try {
+                    //System.out.println("Successful Receipt: \n" + j.toString(4));
+                    switch (j.getInt("SendType")) {
+
+                        case SENDERKEY:
+                            System.out.println("Sender's Key");
+                            System.out.println(j.getString("key"));
+                            otherPublicKey = j.getString("key").getBytes(StandardCharsets.UTF_8);
+                            otherUserID = j.getString("user");
+                            //Snackbar.make(findViewById(R.id.main), j.getString("key"),Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+                            try {
+                                JSONObject p = new JSONObject();
+                                p.put("user", MainActivity.this.userID);
+                                p.put("key", new String(MainActivity.this.publicKey, StandardCharsets.UTF_8));
+                                SendData(s, RECEIVERKEY, p);
+                                ReceiveData(s);
+                            } catch (JSONException e) {
+                                throw new RuntimeException(e);
+                            }
+                            break;
+                        case RECEIVERKEY:
+                            System.out.println("Receiver's Key");
+                            System.out.println(j.getString("key"));
+                            otherPublicKey = j.getString("key").getBytes(StandardCharsets.UTF_8);
+                            otherUserID = j.getString("user");
+                            JSONObject offer = new JSONObject();
+                            offer.put("title", MainActivity.this.dealTitle.getText().toString());
+                            offer.put("desc", MainActivity.this.dealDesc.getText().toString());
+                            JSONObject encryptedOffer = encryptOffer(MainActivity.this.publicKey, MainActivity.this.privateKey, otherPublicKey, offer);
+                            SendData(s, OFFER, encryptedOffer);
+                            ReceiveData(s);
+                            //Snackbar.make(findViewById(R.id.main), j.getString("key"),Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+                            break;
+                        case OFFER:
+                            //Decrypt Offer
+                            System.out.println("Got offer");
+                            JSONObject theoffer = decryptOffer(otherPublicKey, publicKey, privateKey, j.getString("cipher"));
+                            System.out.println(theoffer.toString(4));
+                            runOnUiThread(new Runnable() {
+                                @Override
+                                public void run() {
+                                    AlertDialog.Builder builder = new AlertDialog.Builder(MainActivity.this);
+                                    builder.setTitle(otherUserID + " has offered this deal:");
+                                    try {
+                                        builder.setPositiveButton("Accept", new DialogInterface.OnClickListener() {
+                                                    public void onClick(DialogInterface dialog, int id) {
+                                                        //Sign Offer
+                                                        try {
+                                                            JSONObject a = new JSONObject();
+                                                            a.put("response", "accept");
+                                                            a.put("signed",signOffer(privateKey,j.getString("cipher").getBytes(StandardCharsets.UTF_8)));
+                                                            SendData(s, RESPONSE, a);
+                                                        } catch (JSONException e) {
+                                                            throw new RuntimeException(e);
+                                                        }
+                                                    }
+                                                })
+                                                .setNegativeButton("Reject", new DialogInterface.OnClickListener() {
+                                                    public void onClick(DialogInterface dialog, int id) {
+                                                        try {
+                                                            SendData(s, RESPONSE, new JSONObject().put("response", "reject"));
+                                                        } catch (JSONException e) {
+                                                            throw new RuntimeException(e);
+                                                        }
+                                                    }
+                                                });
+                                        JSONObject plain = new JSONObject(theoffer.getString("plain"));
+                                        builder.setMessage("Title: " + plain.getString("title")+"\nDesc: " + plain.getString("desc"));
+                                    } catch (JSONException e) {
+                                        throw new RuntimeException(e);
                                     }
-                                })
-                                .setNegativeButton("No", new DialogInterface.OnClickListener() {
-                                    public void onClick(DialogInterface dialog, int id) {
-                                    }
-                                });
-                        try {
-                            builder.setMessage(j.toString(4));
-                        } catch (JSONException e) {
-                            throw new RuntimeException(e);
-                        }
-                        builder.create();
-                        builder.show();
+                                    builder.create();
+                                    builder.show();
+                                }
+                            });
+                            break;
+                        case RESPONSE:
+                            if (j.getString("response").equals("accept")) {
+                                submitHandshake(loginToken,loginJWT,loginCookie,otherUserID,dealTitle.getText().toString(),j.getString("signed"),requestQueue);
+                            } else {
+                                //Toast
+                            }
+
+                            break;
+                        default:
+                            System.out.println("Unexpected BT Data");
+                            break;
+
+
                     }
-                });
+                } catch (JSONException e) {
+                    //noop
+                }
+
 
             }
 
@@ -465,78 +548,115 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
-    public void testEncryption(View view) {
+    public void generateKeys() {
 
         SOP sop = new SOPImpl();
 
         try {
-            byte[] alicePrivateKey = sop.generateKey()
-                    .userId("alice")
+            this.privateKey = sop.generateKey()
+                    .userId(this.userID)
+                    //.noArmor()
                     .generate()
                     .getBytes();
 
-            byte[] alicePublicKey = sop.extractCert().key(alicePrivateKey).getBytes();
+            this.publicKey = sop.extractCert()
+                    //.noArmor()
+                    .key(this.privateKey).getBytes();
 
-            byte[] bobPrivateKey = sop.generateKey()
-                    .userId("bob")
-                    .generate()
-                    .getBytes();
 
-            byte[] bobPublicKey = sop.extractCert().key(bobPrivateKey).getBytes();
+            //String key = new String(this.publicKey,StandardCharsets.US_ASCII);
+            //key=key.substring(key.length()-PGPFoot.length()-100);
 
-            byte[] malloryPrivateKey = sop.generateKey()
-                    .userId("mallory")
-                    .generate()
-                    .getBytes();
+            //System.out.println(key.length());
+            //System.out.println(key);
+        } catch (IOException e) {
+            //no-op
+        }
+    }
 
-            byte[] malloryPublicKey = sop.extractCert().key(bobPrivateKey).getBytes();
-
-            //Snackbar.make(view, new String(alicePublicKey), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
-
-            String secretMessage = "Lorem Ipsum";
-            byte[] plaintext = secretMessage.getBytes(StandardCharsets.UTF_8);
+    public JSONObject encryptOffer(byte[] senderPublicKey, byte[] senderPrivateKey, byte[] receiverPublicKey, JSONObject offer) {
+        SOP sop = new SOPImpl();
+        JSONObject result = new JSONObject();
+        try {
+            byte[] plaintext = offer.toString().getBytes(StandardCharsets.UTF_8);
             byte[] ciphertext = sop.encrypt()
-                    .withCert(alicePublicKey)
-                    .withCert(bobPublicKey)
-                    .signWith(alicePrivateKey)
+                    .withCert(senderPublicKey)
+                    .withCert(receiverPublicKey)
+                    .signWith(senderPrivateKey)
                     .plaintext(plaintext)
                     .toByteArrayAndResult().getBytes();
-
-            Snackbar.make(view, new String(ciphertext), Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
-
-            ReadyWithResult<DecryptionResult> readyWithResult = sop.decrypt()
-                    .withKey(alicePrivateKey)
-                    .verifyWithCert(alicePublicKey)
-                    .verifyWithCert(bobPublicKey)
-                    .ciphertext(ciphertext);
-            ByteArrayAndResult<DecryptionResult> bytesAndResult = readyWithResult.toByteArrayAndResult();
-            DecryptionResult result = bytesAndResult.getResult();
-            byte[] resultText = bytesAndResult.getBytes();
-
-            String decryptedMessage = new String(resultText);
-
-
-            //Snackbar.make(view, decryptedMessage, Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-
-            //Snackbar.make(view, Integer.toString(result.getVerifications().size()), Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
-
-
+            result.put("cipher", new String(ciphertext, StandardCharsets.UTF_8));
+            //System.out.println(result.toString(4));
         } catch (IOException e) {
             //no-op
         } catch (SOPGPException.CannotDecrypt e) {
-            Snackbar.make(view, "Invalid decryption key used", Snackbar.LENGTH_LONG).setTextMaxLines(10).show();
+            //no-op
+        } catch (JSONException ex) {
+            //no-op
         }
 
+        return result;
+    }
+
+    public JSONObject decryptOffer(byte[] senderPublicKey, byte[] receiverPublicKey, byte[] receiverPrivateKey, String encrypted) {
+        SOP sop = new SOPImpl();
+        JSONObject result = new JSONObject();
+        byte[] ciphertext = null;
+        ciphertext = encrypted.getBytes(StandardCharsets.UTF_8);
+
+        ReadyWithResult<DecryptionResult> readyWithResult = null;
+        try {
+            readyWithResult = sop.decrypt()
+                    .withKey(receiverPrivateKey)
+                    .verifyWithCert(senderPublicKey)
+                    .verifyWithCert(receiverPublicKey)
+                    .ciphertext(ciphertext);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+        ByteArrayAndResult<DecryptionResult> bytesAndResult = null;
+        try {
+            bytesAndResult = readyWithResult.toByteArrayAndResult();
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
+        DecryptionResult dresult = bytesAndResult.getResult();
+        byte[] resultText = bytesAndResult.getBytes();
+        String decryptedMessage = new String(resultText);
+        try {
+            result.put("plain", decryptedMessage);
+        } catch (JSONException ex) {
+            throw new RuntimeException(ex);
+        } catch (SOPGPException.CannotDecrypt e) {
+            //no-op
+        }
+        return result;
 
     }
 
-    public void doToggle(View view){
+    public String signOffer(byte[] privateKey, byte[] cipher){
+        SOP sop = new SOPImpl();
+        byte[] cleartextSignedMessage= null;
+        try {
+            cleartextSignedMessage = sop.inlineSign()
+                    .mode(InlineSignAs.clearsigned) // This MUST be set
+                    .key(privateKey)
+                    .data(cipher)
+                    .getBytes();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return new String(cleartextSignedMessage,StandardCharsets.UTF_8);
+
+    }
+
+    public void doToggle(View view) {
 
 
-        if (modeSwitch.isChecked()){
+        if (modeSwitch.isChecked()) {
             sendButton.setVisibility(View.INVISIBLE);
             beDiscoverable(view);
-        } else{
+        } else {
             sendButton.setVisibility(View.VISIBLE);
         }
     }
@@ -554,7 +674,7 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public void submitHandshake(String token, String jwt, String cookie, String receiver, String title, String encrypted, View v, RequestQueue rq) {
+    public void submitHandshake(String token, String jwt, String cookie, String receiver, String title, String encrypted, RequestQueue rq) {
 
         JSONObject handshakeInfo = new JSONObject();
         try {
@@ -563,8 +683,8 @@ public class MainActivity extends AppCompatActivity {
             handshakeInfo.put("receiverUsername", receiver);
 
             CreateHandshakeRequest getRequest = new CreateHandshakeRequest(token, jwt, cookie, handshakeInfo,
-                    response -> Snackbar.make(v, "Create Handshake Success", Snackbar.LENGTH_SHORT).setTextMaxLines(10).show(),
-                    error -> Snackbar.make(v, "Create Handshake Error", Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
+                    response -> Snackbar.make(findViewById(R.id.main), "Create Handshake Success", Snackbar.LENGTH_SHORT).setTextMaxLines(10).show(),
+                    error -> Snackbar.make(findViewById(R.id.main), "Create Handshake Error", Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
             // Add the request to the RequestQueue.
             rq.add(getRequest);
         } catch (JSONException e) {

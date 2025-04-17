@@ -9,6 +9,7 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -51,44 +52,37 @@ public class ReceiveRunner implements Callable<JSONObject>{
         int numBytes; // bytes returned from read()
         boolean done = false;
         JSONObject jsonObject = new JSONObject();
+        String readMessage="";
         // Keep listening to the InputStream until an exception occurs.
         while (true) {
             try {
                 // Read from the InputStream.
                 numBytes = mmInStream.read(mmBuffer);
-                String readMessage = new String(mmBuffer, StandardCharsets.UTF_8);
-                jsonObject = new JSONObject(readMessage);
+                //System.out.println(numBytes);
+                readMessage+=new String(mmBuffer, StandardCharsets.UTF_8);
+                readMessage=readMessage.replace("\u0000", "");
+
+                try {
+                    jsonObject = new JSONObject(readMessage);
+                    break;
+                } catch (JSONException e) {
+                }
                 //jsonObject.put("test","check");
-                done = true;
-                break;
 
             } catch (IOException e) {
                 done = true;
                 try {
-                    jsonObject.put("Receive Connection","Failed" + e.toString());
+                    jsonObject.put("Receive Connection","Failed" + e);
                 } catch (JSONException ex) {
                    // throw new RuntimeException(ex);
                 }
-                //Log.d(TAG, "Input stream was disconnected", e);
-                break;
-            } catch (JSONException e) {
-                done = true;
-
-                //Log.d(TAG, "Input stream was disconnected", e);
+                Log.d(TAG, "Input stream was disconnected", e);
                 break;
             }
         }
-        cancel();
+
         return jsonObject;
     }
 
 
-    // Call this method from the main activity to shut down the connection.
-    public void cancel() {
-        try {
-            mmSocket.close();
-        } catch (IOException e) {
-            Log.e(TAG, "Could not close the connect socket", e);
-        }
-    }
 }

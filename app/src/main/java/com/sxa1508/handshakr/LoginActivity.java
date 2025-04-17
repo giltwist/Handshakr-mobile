@@ -25,7 +25,6 @@ import com.android.volley.RequestQueue;
 import com.android.volley.toolbox.BasicNetwork;
 import com.android.volley.toolbox.DiskBasedCache;
 import com.android.volley.toolbox.HurlStack;
-import com.google.android.material.snackbar.Snackbar;
 
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -46,10 +45,10 @@ public class LoginActivity extends AppCompatActivity {
 
     public void doLogin(View view) {
 
-        EditText user = (EditText) findViewById(R.id.user);
-        EditText password = (EditText) findViewById(R.id.password);
-        Button login = (Button) findViewById(R.id.loginButton);
-        ImageView wait = (ImageView) findViewById(R.id.wait);
+        EditText user = findViewById(R.id.user);
+        EditText password = findViewById(R.id.password);
+        Button login = findViewById(R.id.loginButton);
+        ImageView wait = findViewById(R.id.wait);
 
 
         if (user.getText().isEmpty() || password.getText().isEmpty()) {

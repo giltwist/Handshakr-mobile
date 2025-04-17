@@ -9,6 +9,7 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 
 
 public class SendRunner implements Runnable{
@@ -43,6 +44,8 @@ public class SendRunner implements Runnable{
     }
 
     public void run() {
+        //System.out.println("Sending: \n" +new String(mmBuffer, StandardCharsets.UTF_8));
+        //System.out.println("BUFFER SIZE: " + Integer.toString(mmBuffer.length));
         write(mmBuffer);
         //this.cancel();
     }
@@ -61,14 +64,6 @@ public class SendRunner implements Runnable{
         }
     }
 
-    // Call this method from the main activity to shut down the connection.
-    public void cancel() {
-        try {
-            mmSocket.close();
-        } catch (IOException e) {
-            Log.e(TAG, "Could not close the connect socket", e);
-        }
-    }
 
     public void setMmBuffer(byte[] mmBuffer) {
         this.mmBuffer = mmBuffer;
