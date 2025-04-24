@@ -46,12 +46,6 @@ import com.google.common.util.concurrent.MoreExecutors;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.pgpainless.sop.SOPImpl;
-import org.pgpainless.sop.*;
-import org.pgpainless.sop.InlineSignImpl;
-import sop.operation.InlineSign;
-
-import sop.enums.InlineSignAs;
-
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -63,20 +57,26 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import sop.*;
+import sop.ByteArrayAndResult;
 import sop.DecryptionResult;
 import sop.ReadyWithResult;
 import sop.SOP;
+import sop.enums.InlineSignAs;
 import sop.exception.SOPGPException;
 
 public class MainActivity extends AppCompatActivity {
 
     public final UUID MY_UUID = UUID.fromString("40bbb78d-4257-4aff-9607-70ba22b747d2");
+
+
+    //These are sending types for bluetooth.  Might be better as an enum.
     final static int SENDERKEY = 0;
     final static int RECEIVERKEY = 1;
     final static int OFFER = 2;
     final static int RESPONSE = 3;
 
+
+    //Bluetooth variables that may be needed outside the main thread.
     ListPopupWindow BTnearlist;
     public Map<BluetoothDevice, String> btList;
     BTNearbyReceiver btr;
@@ -86,6 +86,8 @@ public class MainActivity extends AppCompatActivity {
 
     RequestQueue requestQueue;
 
+    //Threading variables that may be needed outside the main thread
+
     ExecutorService executor;
     ListeningExecutorService listeningExecutor;
     AcceptRunner acceptRunner;
@@ -93,26 +95,31 @@ public class MainActivity extends AppCompatActivity {
     SendRunner sendRunner;
     ReceiveRunner receiveRunner;
 
+    //UI elements that may be needed outside the main thread.
     EditText welcome;
     EditText dealTitle;
     EditText dealDesc;
-
     Button permButton;
     Button enableButton;
     Button sendButton;
     Switch modeSwitch;
 
+    //HTTP variables that may be needed outside the main thread.
+
     String loginToken;
     String loginJWT;
     String loginCookie;
     String userID;
+
+    //Encryption variables that may be needed outside the main thread
     byte[] privateKey;
     byte[] publicKey;
-
     byte[] otherPublicKey;
     String otherUserID;
 
     //BEGIN ACTIVITY LAUNCHERS
+
+    //Handles permissions granted/denied intent
     private final ActivityResultLauncher<String[]> requestPermissionLauncher =
             registerForActivityResult(new ActivityResultContracts.RequestMultiplePermissions(), isGranted -> {
                 if (isGranted.containsValue(false)) {
@@ -132,14 +139,17 @@ public class MainActivity extends AppCompatActivity {
 
             });
 
+    //Handles enabling of Bluetooth
     private final ActivityResultLauncher<Intent> requestBTenable = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
                 if (result.getResultCode() == Activity.RESULT_OK) {
-                    //noop
+                    enableButton.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.GONE : View.VISIBLE);
+                    modeSwitch.setVisibility(bluetoothAdapter != null && bluetoothAdapter.isEnabled() ? View.VISIBLE : View.INVISIBLE);
                 }
             });
 
+    //Handles bluetooth discovery of neighbors
     private final ActivityResultLauncher<Intent> startDiscoverable = registerForActivityResult(
             new ActivityResultContracts.StartActivityForResult(),
             result -> {
@@ -149,6 +159,14 @@ public class MainActivity extends AppCompatActivity {
             });
 
 
+    /**
+     * Does basic setup of the app once logged in.
+     *
+     * @param savedInstanceState If the activity is being re-initialized after
+     *     previously being shut down then this Bundle contains the data it most
+     *     recently supplied in {@link #onSaveInstanceState}.  <b><i>Note: Otherwise it is null.</i></b>
+     *
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -213,6 +231,7 @@ public class MainActivity extends AppCompatActivity {
         listeningExecutor = MoreExecutors.listeningDecorator(executor);
 
 
+        //BLUETOOTH SETUP
         btList = new HashMap<>();
 
         BTnearadapter = new ArrayAdapter<>(this, androidx.appcompat.R.layout.support_simple_spinner_dropdown_item, btList.values().toArray(String[]::new));
@@ -229,6 +248,11 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * Gets bluetooth "dangerous" permissions from user, if needed.
+     *
+     * @param view
+     */
     public void getBTperms(View view) {
 
         if (hasBTPerms()) {
@@ -243,6 +267,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Basic check for bluetooth perms
+     *
+     * @return A boolean representing the current bluetooth permission status
+     */
     private boolean hasBTPerms() {
         boolean result;
         result = (ContextCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED)
@@ -254,6 +283,11 @@ public class MainActivity extends AppCompatActivity {
         return (result);
     }
 
+    /**
+     * Attempt to turn on bluetooth
+     *
+     * @param view
+     */
     public void enableBT(View view) {
         if (hasBTPerms()) {
 
@@ -277,6 +311,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Core functionality if a user wants to accept offers from others
+     *
+     * @param view
+     */
     @SuppressLint("MissingPermission")
     //Has a permission check but linter doesn't see it
     public void beDiscoverable(View view) {
@@ -319,6 +358,11 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * Preliminary work for a user to make an offer.  Requires the offer form be filled out.
+     *
+     * @param view
+     */
     @SuppressLint("MissingPermission")
     //Has a permission check but linter doesn't see it
     public void doDiscover(View view) {
@@ -352,18 +396,12 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-    public boolean isPaired(MainActivity main, BluetoothDevice b) {
-        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
-
-            return main.bluetoothAdapter.getBondedDevices().contains(b);
-        } else {
-            return false;
-        }
-
-    }
-
+    /**
+     * Core functionality of a user making an offer.
+     *
+     * @param b - a neighboring bluetooth device where a socket is required
+     */
     @SuppressLint("MissingPermission")
-    //Only call with permissions!
     public void doPair(BluetoothDevice b) {
         Toast.makeText(this, "Pairing with " + (b.getName() == null ? b.getAddress() : b.getName()), Toast.LENGTH_SHORT).show();
         bluetoothAdapter.cancelDiscovery();
@@ -385,25 +423,15 @@ public class MainActivity extends AppCompatActivity {
             throw new RuntimeException(e);
         }
 
-        /*
-        Futures.addCallback(futureSockPair, new FutureCallback<>() {
-            @Override
-            public void onSuccess(BluetoothSocket s){
-                Toast.makeText(getApplicationContext(),"Pairing successful", Toast.LENGTH_SHORT).show();
-                testSendData(s);
-            }
-
-            @Override
-            public void onFailure(Throwable t){
-                Toast.makeText(getApplicationContext(),"Pairing Failed", Toast.LENGTH_SHORT).show();
-            }
-        },executor);
-*/
-
 
     }
 
-
+    /**
+     * Core bluetooth functionality for the phone sending data
+     * @param s - a bluetooth socket created previously by doPair
+     * @param type - The purpose of this sending, so that the receiver will process data corectly
+     * @param payload - the actual data being sent
+     */
     @SuppressLint("MissingPermission")
     //Only call with permissions!
     public void SendData(BluetoothSocket s, int type, JSONObject payload) {
@@ -431,6 +459,11 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * Core bluetooth functionality for the phone receiving data
+     * @param s - a bluetooth socket created previously by doPair
+
+     */
     @SuppressLint("MissingPermission")
     //Only call with permissions!
     public void ReceiveData(BluetoothSocket s) {
@@ -444,7 +477,6 @@ public class MainActivity extends AppCompatActivity {
 
 
                 try {
-                    //System.out.println("Successful Receipt: \n" + j.toString(4));
                     switch (j.getInt("SendType")) {
 
                         case SENDERKEY:
@@ -452,7 +484,7 @@ public class MainActivity extends AppCompatActivity {
                             System.out.println(j.getString("key"));
                             otherPublicKey = j.getString("key").getBytes(StandardCharsets.UTF_8);
                             otherUserID = j.getString("user");
-                            //Snackbar.make(findViewById(R.id.main), j.getString("key"),Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+
                             try {
                                 JSONObject p = new JSONObject();
                                 p.put("user", MainActivity.this.userID);
@@ -474,7 +506,7 @@ public class MainActivity extends AppCompatActivity {
                             JSONObject encryptedOffer = encryptOffer(MainActivity.this.publicKey, MainActivity.this.privateKey, otherPublicKey, offer);
                             SendData(s, OFFER, encryptedOffer);
                             ReceiveData(s);
-                            //Snackbar.make(findViewById(R.id.main), j.getString("key"),Snackbar.LENGTH_LONG).setTextMaxLines(30).show();
+
                             break;
                         case OFFER:
                             //Decrypt Offer
@@ -548,6 +580,10 @@ public class MainActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * Basic use of PGPainless to generate a new key.
+     * TODO: Store to android keystore
+     */
     public void generateKeys() {
 
         SOP sop = new SOPImpl();
@@ -555,25 +591,27 @@ public class MainActivity extends AppCompatActivity {
         try {
             this.privateKey = sop.generateKey()
                     .userId(this.userID)
-                    //.noArmor()
                     .generate()
                     .getBytes();
 
             this.publicKey = sop.extractCert()
-                    //.noArmor()
                     .key(this.privateKey).getBytes();
 
 
-            //String key = new String(this.publicKey,StandardCharsets.US_ASCII);
-            //key=key.substring(key.length()-PGPFoot.length()-100);
-
-            //System.out.println(key.length());
-            //System.out.println(key);
         } catch (IOException e) {
             //no-op
         }
     }
 
+    /**
+     * Core use of PGPainless to encrypt an offer with PGP
+     *
+     * @param senderPublicKey - Alice's Public Key
+     * @param senderPrivateKey - Alice's Private Key
+     * @param receiverPublicKey - Bob's Public Key
+     * @param offer - Alice's offer to Bob
+     * @return A JSONobject representation of the encrypted offer
+     */
     public JSONObject encryptOffer(byte[] senderPublicKey, byte[] senderPrivateKey, byte[] receiverPublicKey, JSONObject offer) {
         SOP sop = new SOPImpl();
         JSONObject result = new JSONObject();
@@ -598,6 +636,15 @@ public class MainActivity extends AppCompatActivity {
         return result;
     }
 
+    /**
+     * Core use of PGPainless to decrypt an offer.
+     * @param senderPublicKey - Alice's Public Key
+     * @param receiverPublicKey - Bob's Public Key
+     * @param receiverPrivateKey - Bob's Private Key
+     * @param encrypted - Alice's encrypted offer to bob
+     * @return A JSONObject that represents the decrypted offer
+     * TODO: Make the verifications visible to the user
+     */
     public JSONObject decryptOffer(byte[] senderPublicKey, byte[] receiverPublicKey, byte[] receiverPrivateKey, String encrypted) {
         SOP sop = new SOPImpl();
         JSONObject result = new JSONObject();
@@ -634,6 +681,13 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * Core use of PGPainless to sign an offer encrypted by someone else.
+     *
+     * @param privateKey - Bob's private key
+     * @param cipher - Alice's encrypted offer
+     * @return A string of Alice's Encrypted offer appended with Bob's signature
+     */
     public String signOffer(byte[] privateKey, byte[] cipher){
         SOP sop = new SOPImpl();
         byte[] cleartextSignedMessage= null;
@@ -650,6 +704,11 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * A basic UI update function for the make/receive toggle
+     *
+     * @param view
+     */
     public void doToggle(View view) {
 
 
@@ -661,9 +720,17 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
+    /**
+     * A manual testing function of the HTTP login methods, not actually required for user
+     * Confirms that the login response received from back-end is actually valid
+     *
+     * @param token - XSRF Token from HTTP response header
+     * @param jwt - JWT Token from HTTP response body
+     * @param cookie - XSRF Cookie from HTTP response body
+     * @param v - Where to show test results
+     * @param rq - Where to send the HTTP request
+     */
     public void validateCSRF(String token, String jwt, String cookie, View v, RequestQueue rq) {
-
-        //CONFIRM LOGIN
 
         ValidateAuthRequest getRequest = new ValidateAuthRequest(token, jwt, cookie,
                 response -> Snackbar.make(v, "Validation Volley Success", Snackbar.LENGTH_SHORT).setTextMaxLines(10).show(),
@@ -674,6 +741,17 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
+    /**
+     * Core usage of Volley to report finalized Handshake to backend
+     *
+     * @param token - XSRF Token from HTTP response header
+     * @param jwt - JWT Token from HTTP response body
+     * @param cookie - XSRF Cookie from HTTP response body
+     * @param receiver - UserID of the other person in this handshake
+     * @param title - Plaintext name for this handshake
+     * @param encrypted - The encrypted details that will be stored by the backend
+     * @param rq - Where to send the HTTP request
+     */
     public void submitHandshake(String token, String jwt, String cookie, String receiver, String title, String encrypted, RequestQueue rq) {
 
         JSONObject handshakeInfo = new JSONObject();
@@ -684,7 +762,7 @@ public class MainActivity extends AppCompatActivity {
 
             CreateHandshakeRequest getRequest = new CreateHandshakeRequest(token, jwt, cookie, handshakeInfo,
                     response -> Snackbar.make(findViewById(R.id.main), "Create Handshake Success", Snackbar.LENGTH_SHORT).setTextMaxLines(10).show(),
-                    error -> Snackbar.make(findViewById(R.id.main), "Create Handshake Error", Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
+                    error -> Snackbar.make(findViewById(R.id.main), "Create Handshake Failure", Snackbar.LENGTH_LONG).setTextMaxLines(10).show());
             // Add the request to the RequestQueue.
             rq.add(getRequest);
         } catch (JSONException e) {

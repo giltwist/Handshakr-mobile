@@ -9,7 +9,6 @@ import android.util.Log;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -47,6 +46,11 @@ public class ReceiveRunner implements Callable<JSONObject>{
         mmOutStream = tmpOut;
     }
 
+    /**
+     * Attempts to receive data sent by someone else
+     *
+     * @return A JSONObject contaning the data sent by someone else
+     */
     public JSONObject call() {
         mmBuffer = new byte[1024];
         int numBytes; // bytes returned from read()

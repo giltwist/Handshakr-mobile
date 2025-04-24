@@ -34,6 +34,11 @@ public class AcceptRunner implements Callable<BluetoothSocket> {
         mmServerSocket = tmp;
     }
 
+    /**
+     * Attempts to accept a bluetooth pairing initiated by someone else.
+     *
+     * @return a completed bluetooth socket
+     */
     public BluetoothSocket call() {
         BluetoothSocket socket = null;
         // Keep listening until exception occurs or a socket is returned.

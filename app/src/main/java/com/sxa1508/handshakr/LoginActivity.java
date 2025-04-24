@@ -31,6 +31,13 @@ import org.json.JSONObject;
 
 public class LoginActivity extends AppCompatActivity {
 
+    /**
+     * Initial setup on first open of app.
+     * @param savedInstanceState If the activity is being re-initialized after
+     *     previously being shut down then this Bundle contains the data it most
+     *     recently supplied in {@link #onSaveInstanceState}.  <b><i>Note: Otherwise it is null.</i></b>
+     *
+     */
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -43,6 +50,11 @@ public class LoginActivity extends AppCompatActivity {
         });
     }
 
+    /**
+     * Attempt to login and transition to the Main Activity
+     *
+     * @param view
+     */
     public void doLogin(View view) {
 
         EditText user = findViewById(R.id.user);

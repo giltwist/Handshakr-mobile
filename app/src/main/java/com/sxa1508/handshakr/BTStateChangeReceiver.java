@@ -23,6 +23,13 @@ public class BTStateChangeReceiver extends BroadcastReceiver {
         this.adapter = adapter;
     }
 
+    /**
+     * Basic handler of updated bluetooth state
+     *
+     * @param context The Context in which the receiver is running.
+     * @param intent The Intent being received.
+     * TODO: Interrupt bluetooth transfers safely if BT is disabled mid-transfer
+     */
     @Override
     public void onReceive(Context context, Intent intent) {
         try {

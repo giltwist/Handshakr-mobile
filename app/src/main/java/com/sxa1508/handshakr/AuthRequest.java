@@ -17,6 +17,10 @@ public class AuthRequest extends BaseRequest {
 
     }
 
+    /**
+     * Ensures that the backend recognizes this HTTP request as from the mobile app
+     * @return the HTTP headers of this request as a Map
+     */
     @Override
     public Map<String, String> getHeaders() {
         Map<String, String>  params = new HashMap<String, String>();

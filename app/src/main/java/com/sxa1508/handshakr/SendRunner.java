@@ -9,7 +9,6 @@ import android.util.Log;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.charset.StandardCharsets;
 
 
 public class SendRunner implements Runnable{
@@ -43,6 +42,10 @@ public class SendRunner implements Runnable{
         mmOutStream = tmpOut;
     }
 
+    /**
+     * Attempts to send data to someone else
+     *
+     */
     public void run() {
         //System.out.println("Sending: \n" +new String(mmBuffer, StandardCharsets.UTF_8));
         //System.out.println("BUFFER SIZE: " + Integer.toString(mmBuffer.length));
@@ -50,7 +53,11 @@ public class SendRunner implements Runnable{
         //this.cancel();
     }
 
-    // Call this from the main activity to send data to the remote device.
+
+    /**
+     * Do not call this directly, as it is a blocking call
+     * Utilizing executor to call run()
+     */
     public void write(byte[] bytes) {
         try {
             mmOutStream.write(bytes);
@@ -65,6 +72,10 @@ public class SendRunner implements Runnable{
     }
 
 
+    /**
+     * Basic Setter
+     * @param mmBuffer - The bytes to be sent.
+     */
     public void setMmBuffer(byte[] mmBuffer) {
         this.mmBuffer = mmBuffer;
     }

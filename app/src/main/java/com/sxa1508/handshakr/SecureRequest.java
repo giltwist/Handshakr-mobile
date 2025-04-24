@@ -21,6 +21,10 @@ public class SecureRequest extends BaseRequest {
         this.cookie=cookie;
     }
 
+    /**
+     * Ensure the Headers of this HTTP request are tied to the current user login
+     * @return a map of the headers
+     */
     @Override
     public Map<String, String> getHeaders() {
         Map<String, String>  params = new HashMap<String, String>();

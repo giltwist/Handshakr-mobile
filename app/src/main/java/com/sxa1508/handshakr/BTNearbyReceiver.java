@@ -16,6 +16,11 @@ public class BTNearbyReceiver extends BroadcastReceiver {
         this.main=mainActivity;
     }
 
+    /**
+     * Handler of detecting nearby bluetooth devices
+     * @param context The Context in which the receiver is running.
+     * @param intent The Intent being received.
+     */
     @Override
     public void onReceive(Context context, Intent intent) {
         BluetoothDevice fromIntent = intent.getParcelableExtra(BluetoothDevice.EXTRA_DEVICE);
@@ -26,8 +31,5 @@ public class BTNearbyReceiver extends BroadcastReceiver {
         this.main.BTnearlist.setAdapter(this.main.BTnearadapter);
         this.main.BTnearlist.show();
 
-
-        //Toast hasBTtoast = Toast.makeText(main, "FoundBTnear", Toast.LENGTH_SHORT);
-        //hasBTtoast.show();
     }
 }

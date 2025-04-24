@@ -21,6 +21,12 @@ public class BaseRequest extends JsonObjectRequest {
 
     }
 
+    /**
+     * Basic template for HTTP communication with back end
+     *
+     * @param response Response from the network
+     * @return the response properly formatted to the backend's specifications
+     */
     @Override
     protected Response<JSONObject> parseNetworkResponse(NetworkResponse response) {
 

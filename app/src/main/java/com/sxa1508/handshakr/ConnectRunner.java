@@ -29,6 +29,11 @@ public class ConnectRunner implements Callable<BluetoothSocket> {
         this.uuid = uuid;
     }
 
+    /**
+     * Attempts to initiate a bluetooth pairing with someone else.
+     *
+     * @return a completed bluetooth socket
+     */
     public BluetoothSocket call() {
 
         BluetoothSocket mmSocket = null;
